@@ -1,7 +1,9 @@
 package main
 
 import (
+        "context"
         "encoding/json"
+        "errors"
         "fmt"
         "io"
         "io/ioutil"
@@ -67,32 +69,53 @@ func (s *RdriveServer) Run() {
 
                         w.Write([]byte(outStr))
                 } else {
+                        header := w.Header()
+                        header.Set("Accept-Ranges", "bytes")
+
                         rangeHeader := r.Header.Get("Range")
 
                         var offset int64 = 0
                         var copyLength int64 = 0
 
+                        var rang *HttpRange
                         if rangeHeader != "" {
-                                r, err := parseRange(rangeHeader)
+                                var err error
+                                rang, err = parseRange(rangeHeader)
                                 if err != nil {
                                         w.WriteHeader(500)
                                         w.Write([]byte(err.Error()))
+                                        return
                                 }
 
-                                offset = r.Start
-                                copyLength = r.End - r.Start + 1
+                                offset = rang.Start
 
-                                //w.Header()["Content-Range"] = fmt.Sprintf("%d-%d/%d", r.Start, r.End, 
+                                if rang.End != MAX_INT64 {
+                                        copyLength = rang.End - rang.Start + 1
+                                }
+
+                        }
+
+                        item, reader, err := s.backend.Get(r.Context(), r.URL.Path, offset, copyLength)
+                        if err != nil {
+                                w.WriteHeader(404)
+                                w.Write([]byte("Not found"))
+                                return
+                        }
+
+                        if rang != nil {
+                                end := rang.End
+                                if end == MAX_INT64 {
+                                        end = (item.Size - 1) - rang.Start
+                                }
+                                header.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", rang.Start, end, item.Size))
+                                header.Set("Content-Length", fmt.Sprintf("%d", end - rang.Start + 1))
                                 w.WriteHeader(206)
                         }
 
-                        reader, err := s.backend.Get(r.URL.Path, offset, copyLength)
+                        _, err = io.Copy(w, reader)
                         if err != nil {
-                                w.WriteHeader(500)
-                                w.Write([]byte(err.Error()))
+                                fmt.Println(err)
                         }
-
-                        io.Copy(w, reader)
                 }
         })
 
@@ -122,27 +145,32 @@ func (fs *FileSystemBackend) List(reqPath string) (*Item, error) {
         return item, nil
 }
 
-func (fs *FileSystemBackend) Get(reqPath string, offset, length int64) (io.Reader, error) {
+func (fs *FileSystemBackend) Get(ctx context.Context, reqPath string, offset, length int64) (*Item, io.Reader, error) {
         p := path.Join(fs.rootDir, reqPath)
 
         file, err := os.Open(p)
         if err != nil {
-                return nil, err
+                return nil, nil, err
         }
 
         file.Seek(offset, 0)
 
+        stat, err := file.Stat()
+        if err != nil {
+                return nil, nil, err
+        }
+
         reader, writer := io.Pipe()
 
         copyLength := length
-        if copyLength == 0 {
-                stat, err := file.Stat()
-                if err != nil {
-                        return nil, err
-                }
-
-                copyLength = stat.Size()
+        if length == 0 {
+                copyLength = stat.Size() - offset
         }
+
+        go func() {
+                <- ctx.Done()
+                writer.Close()
+        }()
 
         go func() {
                 defer file.Close()
@@ -158,7 +186,11 @@ func (fs *FileSystemBackend) Get(reqPath string, offset, length int64) (io.Reade
                 }
         }()
 
-        return reader, nil
+        item := &Item{
+                Size: stat.Size(),
+        }
+
+        return item, reader, nil
 }
 
 func DirToGemDrive(files []os.FileInfo) *Item {
@@ -190,23 +222,41 @@ type HttpRange struct {
         End int64 `json:"end,omitempty"`
 }
 
+// TODO: parse byte range specs properly according to
+// https://tools.ietf.org/html/rfc7233
+const MAX_INT64 int64 = 9223372036854775807
 func parseRange(header string) (*HttpRange, error) {
 
-        // TODO: this is very hacky and brittle
         parts := strings.Split(header, "=")
-        rangeParts := strings.Split(parts[1], "-")
-
-        start, err := strconv.Atoi(rangeParts[0])
-        if err != nil {
-                return nil, err
+        if len(parts) != 2 {
+                return nil, errors.New("Invalid Range header")
         }
-        end, err := strconv.Atoi(rangeParts[1])
-        if err != nil {
-                return nil, err
+
+        rangeParts := strings.Split(parts[1], "-")
+        if len(rangeParts) != 2 {
+                return nil, errors.New("Invalid Range header")
+        }
+
+        var start int64 = 0
+        if rangeParts[0] != "" {
+                var err error
+                start, err = strconv.ParseInt(rangeParts[0], 10, 64)
+                if err != nil {
+                        return nil, err
+                }
+        }
+
+        var end int64 = MAX_INT64
+        if rangeParts[1] != "" {
+                var err error
+                end, err = strconv.ParseInt(rangeParts[1], 10, 64)
+                if err != nil {
+                        return nil, err
+                }
         }
 
         return &HttpRange {
-                Start: int64(start),
-                End: int64(end),
+                Start: start,
+                End: end,
         }, nil
 }
