@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"io"
 )
 
@@ -12,5 +11,5 @@ type Item struct {
 
 type Backend interface {
 	List(path string) (*Item, error)
-	Get(ctx context.Context, path string, offset, length int64) (*Item, io.Reader, error)
+	Get(path string, offset, length int64) (*Item, io.ReadCloser, error)
 }

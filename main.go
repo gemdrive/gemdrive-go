@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -94,12 +93,13 @@ func (s *RdriveServer) Run() {
 
 			}
 
-			item, reader, err := s.backend.Get(r.Context(), r.URL.Path, offset, copyLength)
+			item, data, err := s.backend.Get(r.URL.Path, offset, copyLength)
 			if err != nil {
 				w.WriteHeader(404)
 				w.Write([]byte("Not found"))
 				return
 			}
+			defer data.Close()
 
 			if rang != nil {
 				end := rang.End
@@ -111,7 +111,7 @@ func (s *RdriveServer) Run() {
 				w.WriteHeader(206)
 			}
 
-			_, err = io.Copy(w, reader)
+			_, err = io.Copy(w, data)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -144,7 +144,7 @@ func (fs *FileSystemBackend) List(reqPath string) (*Item, error) {
 	return item, nil
 }
 
-func (fs *FileSystemBackend) Get(ctx context.Context, reqPath string, offset, length int64) (*Item, io.Reader, error) {
+func (fs *FileSystemBackend) Get(reqPath string, offset, length int64) (*Item, io.ReadCloser, error) {
 	p := path.Join(fs.rootDir, reqPath)
 
 	file, err := os.Open(p)
@@ -165,11 +165,6 @@ func (fs *FileSystemBackend) Get(ctx context.Context, reqPath string, offset, le
 	if length == 0 {
 		copyLength = stat.Size() - offset
 	}
-
-	go func() {
-		<-ctx.Done()
-		writer.Close()
-	}()
 
 	go func() {
 		defer file.Close()
