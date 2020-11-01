@@ -5,12 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
-	"os"
-	"path"
 	"strconv"
 	"strings"
+        "./gemdrive"
 )
 
 func main() {
@@ -20,10 +18,10 @@ func main() {
 }
 
 type RdriveServer struct {
-	backend Backend
+	backend gemdrive.Backend
 }
 
-func NewRdriveServer(backend Backend) *RdriveServer {
+func NewRdriveServer(backend gemdrive.Backend) *RdriveServer {
 	return &RdriveServer{
 		backend,
 	}
@@ -37,7 +35,11 @@ func (s *RdriveServer) Run() {
 
 		if strings.HasSuffix(r.URL.Path, "/.gemdrive-ls.json") {
 			item, err := s.backend.List(r.URL.Path[:len(r.URL.Path)-len(".gemdrive-ls.json")])
-			if err != nil {
+			if e, ok := err.(*gemdrive.Error); ok {
+				w.WriteHeader(e.HttpCode)
+				w.Write([]byte(e.Message))
+				return
+			} else if err != nil {
 				w.WriteHeader(500)
 				w.Write([]byte(err.Error()))
 			}
@@ -51,7 +53,11 @@ func (s *RdriveServer) Run() {
 			w.Write(jsonBody)
 		} else if strings.HasSuffix(r.URL.Path, "/.gemdrive-ls.tsv") {
 			item, err := s.backend.List(r.URL.Path[:len(r.URL.Path)-len(".gemdrive-ls.tsv")])
-			if err != nil {
+			if e, ok := err.(*gemdrive.Error); ok {
+				w.WriteHeader(e.HttpCode)
+				w.Write([]byte(e.Message))
+				return
+			} else if err != nil {
 				w.WriteHeader(500)
 				w.Write([]byte(err.Error()))
 			}
@@ -93,10 +99,14 @@ func (s *RdriveServer) Run() {
 
 			}
 
-			item, data, err := s.backend.Get(r.URL.Path, offset, copyLength)
-			if err != nil {
-				w.WriteHeader(404)
-				w.Write([]byte("Not found"))
+			item, data, err := s.backend.Read(r.URL.Path, offset, copyLength)
+			if readErr, ok := err.(*gemdrive.Error); ok {
+				w.WriteHeader(readErr.HttpCode)
+				w.Write([]byte(readErr.Message))
+				return
+			} else if err != nil {
+				w.WriteHeader(500)
+				w.Write([]byte("Server error"))
 				return
 			}
 			defer data.Close()
@@ -120,94 +130,6 @@ func (s *RdriveServer) Run() {
 
 	fmt.Println("Running")
 	http.ListenAndServe(":9002", nil)
-}
-
-type FileSystemBackend struct {
-	rootDir string
-}
-
-func NewFileSystemBackend() *FileSystemBackend {
-	rootDir := "./"
-
-	return &FileSystemBackend{rootDir}
-}
-
-func (fs *FileSystemBackend) List(reqPath string) (*Item, error) {
-	p := path.Join(fs.rootDir, reqPath)
-	files, err := ioutil.ReadDir(p)
-	if err != nil {
-		return nil, err
-	}
-
-	item := DirToGemDrive(files)
-
-	return item, nil
-}
-
-func (fs *FileSystemBackend) Get(reqPath string, offset, length int64) (*Item, io.ReadCloser, error) {
-	p := path.Join(fs.rootDir, reqPath)
-
-	file, err := os.Open(p)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	file.Seek(offset, 0)
-
-	stat, err := file.Stat()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	reader, writer := io.Pipe()
-
-	copyLength := length
-	if length == 0 {
-		copyLength = stat.Size() - offset
-	}
-
-	go func() {
-		defer file.Close()
-		defer writer.Close()
-
-		n, err := io.CopyN(writer, file, copyLength)
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-
-		if n != copyLength {
-			fmt.Println("n != copyLength", n, copyLength)
-		}
-	}()
-
-	item := &Item{
-		Size: stat.Size(),
-	}
-
-	return item, reader, nil
-}
-
-func DirToGemDrive(files []os.FileInfo) *Item {
-
-	item := &Item{}
-
-	if len(files) > 0 {
-		item.Children = make(map[string]*Item)
-	}
-
-	for _, file := range files {
-		if file.IsDir() {
-			item.Children[file.Name()+"/"] = &Item{
-				Size: file.Size(),
-			}
-		} else {
-			item.Children[file.Name()] = &Item{
-				Size: file.Size(),
-			}
-		}
-	}
-
-	return item
 }
 
 type HttpRange struct {
