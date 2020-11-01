@@ -72,7 +72,6 @@ func (b *RcloneBackend) Read(reqPath string, offset, length int64) (*gemdrive.It
 
         args = append(args, rclonePath)
 
-        fmt.Println(args)
         cmd := exec.Command("rclone", args...)
 
         data, err := cmd.StdoutPipe()

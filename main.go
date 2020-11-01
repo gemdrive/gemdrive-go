@@ -12,9 +12,12 @@ import (
 )
 
 func main() {
-	//backend := NewFileSystemBackend()
-	backend := NewRcloneBackend()
-	server := NewRdriveServer(backend)
+	fsBackend := NewFileSystemBackend()
+	rcloneBackend := NewRcloneBackend()
+        multiBackend := gemdrive.NewMultiBackend()
+        multiBackend.AddBackend("fs", fsBackend)
+        multiBackend.AddBackend("rclone", rcloneBackend)
+	server := NewRdriveServer(multiBackend)
 	server.Run()
 }
 
