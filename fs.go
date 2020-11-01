@@ -1,12 +1,12 @@
 package main
 
 import (
+	"./gemdrive"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
-	"io/ioutil"
-        "./gemdrive"
 )
 
 type FileSystemBackend struct {

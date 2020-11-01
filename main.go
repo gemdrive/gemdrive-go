@@ -1,6 +1,7 @@
 package main
 
 import (
+	"./gemdrive"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,15 +9,14 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-        "./gemdrive"
 )
 
 func main() {
 	fsBackend := NewFileSystemBackend()
 	rcloneBackend := NewRcloneBackend()
-        multiBackend := gemdrive.NewMultiBackend()
-        multiBackend.AddBackend("fs", fsBackend)
-        multiBackend.AddBackend("rclone", rcloneBackend)
+	multiBackend := gemdrive.NewMultiBackend()
+	multiBackend.AddBackend("fs", fsBackend)
+	multiBackend.AddBackend("rclone", rcloneBackend)
 	server := NewRdriveServer(multiBackend)
 	server.Run()
 }
@@ -120,14 +120,14 @@ func (s *RdriveServer) Run() {
 				if end == MAX_INT64 {
 					end = item.Size - 1
 				}
-                                l := end-rang.Start+1
-                                fmt.Println("l", l, end, rang.Start)
+				l := end - rang.Start + 1
+				fmt.Println("l", l, end, rang.Start)
 				header.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", rang.Start, end, item.Size))
 				header.Set("Content-Length", fmt.Sprintf("%d", l))
 				w.WriteHeader(206)
 			} else {
 				header.Set("Content-Length", fmt.Sprintf("%d", item.Size))
-                        }
+			}
 
 			_, err = io.Copy(w, data)
 			if err != nil {
