@@ -41,7 +41,11 @@ func (b *RcloneBackend) List(reqPath string) (*gemdrive.Item, error) {
 			Size: item.Size,
 		}
 
-		parentItem.Children[item.Name] = child
+		if item.IsDir {
+			parentItem.Children[item.Name+"/"] = child
+		} else {
+			parentItem.Children[item.Name] = child
+		}
 	}
 
 	return parentItem, nil
