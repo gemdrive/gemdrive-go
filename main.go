@@ -12,7 +12,8 @@ import (
 )
 
 func main() {
-	backend := NewFileSystemBackend()
+	//backend := NewFileSystemBackend()
+	backend := NewRcloneBackend()
 	server := NewRdriveServer(backend)
 	server.Run()
 }
@@ -114,12 +115,16 @@ func (s *RdriveServer) Run() {
 			if rang != nil {
 				end := rang.End
 				if end == MAX_INT64 {
-					end = (item.Size - 1) - rang.Start
+					end = item.Size - 1
 				}
+                                l := end-rang.Start+1
+                                fmt.Println("l", l, end, rang.Start)
 				header.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", rang.Start, end, item.Size))
-				header.Set("Content-Length", fmt.Sprintf("%d", end-rang.Start+1))
+				header.Set("Content-Length", fmt.Sprintf("%d", l))
 				w.WriteHeader(206)
-			}
+			} else {
+				header.Set("Content-Length", fmt.Sprintf("%d", item.Size))
+                        }
 
 			_, err = io.Copy(w, data)
 			if err != nil {
