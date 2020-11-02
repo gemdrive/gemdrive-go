@@ -8,34 +8,61 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path"
 	"strconv"
 	"strings"
 )
 
 func main() {
-	fsBackend := NewFileSystemBackend()
-	rcloneBackend := NewRcloneBackend()
+	port := flag.Int("port", 3838, "Port")
+	var dirs arrayFlags
+	flag.Var(&dirs, "dir", "Directory to add")
+	flag.Parse()
+
 	multiBackend := gemdrive.NewMultiBackend()
-	multiBackend.AddBackend("fs", fsBackend)
+
+	for _, dir := range dirs {
+		fsBackend, err := NewFileSystemBackend(dir)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		multiBackend.AddBackend(path.Base(dir), fsBackend)
+	}
+
+	rcloneBackend := NewRcloneBackend()
 	multiBackend.AddBackend("rclone", rcloneBackend)
-	server := NewRdriveServer(multiBackend)
+
+	server := NewRdriveServer(*port, multiBackend)
 	server.Run()
 }
 
 type RdriveServer struct {
+	port    int
 	backend gemdrive.Backend
 }
 
-func NewRdriveServer(backend gemdrive.Backend) *RdriveServer {
+func NewRdriveServer(port int, backend gemdrive.Backend) *RdriveServer {
 	return &RdriveServer{
+		port,
 		backend,
 	}
 }
 
-func (s *RdriveServer) Run() {
+// Taken from https://stackoverflow.com/a/28323276/943814
+type arrayFlags []string
 
-	port := flag.String("port", "9002", "Port")
-	flag.Parse()
+func (i *arrayFlags) String() string {
+	return "my string representation"
+}
+
+func (i *arrayFlags) Set(value string) error {
+	*i = append(*i, value)
+	return nil
+}
+
+func (s *RdriveServer) Run() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
@@ -125,7 +152,6 @@ func (s *RdriveServer) Run() {
 					end = item.Size - 1
 				}
 				l := end - rang.Start + 1
-				fmt.Println("l", l, end, rang.Start)
 				header.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", rang.Start, end, item.Size))
 				header.Set("Content-Length", fmt.Sprintf("%d", l))
 				w.WriteHeader(206)
@@ -141,7 +167,7 @@ func (s *RdriveServer) Run() {
 	})
 
 	fmt.Println("Running")
-	err := http.ListenAndServe(":"+*port, nil)
+	err := http.ListenAndServe(fmt.Sprintf(":%d", s.port), nil)
 	if err != nil {
 		fmt.Println(err)
 	}

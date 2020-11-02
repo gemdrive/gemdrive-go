@@ -2,6 +2,7 @@ package main
 
 import (
 	"./gemdrive"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,10 +13,15 @@ type FileSystemBackend struct {
 	rootDir string
 }
 
-func NewFileSystemBackend() *FileSystemBackend {
-	rootDir := "./"
+func NewFileSystemBackend(dirPath string) (*FileSystemBackend, error) {
+	stat, err := os.Stat(dirPath)
+	if os.IsNotExist(err) {
+		return nil, err
+	} else if !stat.IsDir() {
+		return nil, errors.New("Not a directory")
+	}
 
-	return &FileSystemBackend{rootDir}
+	return &FileSystemBackend{rootDir: dirPath}, nil
 }
 
 func (fs *FileSystemBackend) List(reqPath string) (*gemdrive.Item, error) {
@@ -118,8 +124,7 @@ func ReadDir(dirPath string) ([]os.FileInfo, error) {
 	}
 	defer dir.Close()
 
-	// TODO: loop in case more than 4096
-	names, err := dir.Readdirnames(4096)
+	names, err := dir.Readdirnames(0)
 	if err != nil {
 		return nil, err
 	}
