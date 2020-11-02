@@ -4,6 +4,7 @@ import (
 	"./gemdrive"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,6 +33,9 @@ func NewRdriveServer(backend gemdrive.Backend) *RdriveServer {
 }
 
 func (s *RdriveServer) Run() {
+
+	port := flag.String("port", "9002", "Port")
+	flag.Parse()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
@@ -137,7 +141,10 @@ func (s *RdriveServer) Run() {
 	})
 
 	fmt.Println("Running")
-	http.ListenAndServe(":9002", nil)
+	err := http.ListenAndServe(":"+*port, nil)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 type HttpRange struct {
