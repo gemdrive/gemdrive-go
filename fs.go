@@ -4,7 +4,6 @@ import (
 	"./gemdrive"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 )
@@ -21,7 +20,8 @@ func NewFileSystemBackend() *FileSystemBackend {
 
 func (fs *FileSystemBackend) List(reqPath string) (*gemdrive.Item, error) {
 	p := path.Join(fs.rootDir, reqPath)
-	files, err := ioutil.ReadDir(p)
+
+	files, err := ReadDir(p)
 	if err != nil {
 		return nil, err
 	}
@@ -107,4 +107,34 @@ func DirToGemDrive(files []os.FileInfo) *gemdrive.Item {
 	}
 
 	return item
+}
+
+// Like ioutil.ReadDir but follows symlinks
+func ReadDir(dirPath string) ([]os.FileInfo, error) {
+
+	dir, err := os.Open(dirPath)
+	if err != nil {
+		return nil, err
+	}
+	defer dir.Close()
+
+	// TODO: loop in case more than 4096
+	names, err := dir.Readdirnames(4096)
+	if err != nil {
+		return nil, err
+	}
+
+	files := []os.FileInfo{}
+
+	for _, name := range names {
+		filePath := path.Join(dirPath, name)
+		fileInfo, err := os.Stat(filePath)
+		if err != nil {
+			return nil, err
+		}
+
+		files = append(files, fileInfo)
+	}
+
+	return files, nil
 }
