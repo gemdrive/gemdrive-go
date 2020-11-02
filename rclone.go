@@ -13,9 +13,10 @@ type RcloneBackend struct {
 }
 
 type rcloneItem struct {
-	Name  string
-	Size  int64
-	IsDir bool
+	Name    string
+	Size    int64
+	ModTime string
+	IsDir   bool
 }
 
 func NewRcloneBackend() *RcloneBackend {
@@ -38,7 +39,8 @@ func (b *RcloneBackend) List(reqPath string) (*gemdrive.Item, error) {
 
 	for _, item := range rcloneItems {
 		child := &gemdrive.Item{
-			Size: item.Size,
+			Size:    item.Size,
+			ModTime: item.ModTime,
 		}
 
 		if item.IsDir {
@@ -58,7 +60,8 @@ func (b *RcloneBackend) Read(reqPath string, offset, length int64) (*gemdrive.It
 	}
 
 	item := &gemdrive.Item{
-		Size: rcloneItems[0].Size,
+		Size:    rcloneItems[0].Size,
+		ModTime: rcloneItems[0].ModTime,
 	}
 
 	args := []string{"cat"}

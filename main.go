@@ -101,7 +101,7 @@ func (s *RdriveServer) Run() {
 
 			if item.Children != nil {
 				for name, child := range item.Children {
-					line := fmt.Sprintf("%s\t%s\t%d\n", name, "2020-02-02", child.Size)
+					line := fmt.Sprintf("%s\t%s\t%d\n", name, child.ModTime, child.Size)
 					outStr = outStr + line
 				}
 			}

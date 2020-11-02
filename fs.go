@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"time"
 )
 
 type FileSystemBackend struct {
@@ -101,14 +102,16 @@ func DirToGemDrive(files []os.FileInfo) *gemdrive.Item {
 	}
 
 	for _, file := range files {
+		var name string
 		if file.IsDir() {
-			item.Children[file.Name()+"/"] = &gemdrive.Item{
-				Size: file.Size(),
-			}
+			name = file.Name() + "/"
 		} else {
-			item.Children[file.Name()] = &gemdrive.Item{
-				Size: file.Size(),
-			}
+			name = file.Name()
+		}
+
+		item.Children[name] = &gemdrive.Item{
+			Size:    file.Size(),
+			ModTime: file.ModTime().Format(time.RFC3339),
 		}
 	}
 
