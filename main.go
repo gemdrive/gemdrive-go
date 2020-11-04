@@ -77,15 +77,18 @@ func (s *RdriveServer) Run() {
 			} else if err != nil {
 				w.WriteHeader(500)
 				w.Write([]byte(err.Error()))
+				return
 			}
 
 			jsonBody, err := json.MarshalIndent(item, "", "  ")
 			if err != nil {
 				w.WriteHeader(500)
 				w.Write([]byte(err.Error()))
+				return
 			}
 
 			w.Write(jsonBody)
+
 		} else if strings.HasSuffix(r.URL.Path, "/.gemdrive-ls.tsv") {
 			item, err := s.backend.List(r.URL.Path[:len(r.URL.Path)-len(".gemdrive-ls.tsv")])
 			if e, ok := err.(*gemdrive.Error); ok {
@@ -95,6 +98,7 @@ func (s *RdriveServer) Run() {
 			} else if err != nil {
 				w.WriteHeader(500)
 				w.Write([]byte(err.Error()))
+				return
 			}
 
 			outStr := ""
@@ -141,7 +145,7 @@ func (s *RdriveServer) Run() {
 				return
 			} else if err != nil {
 				w.WriteHeader(500)
-				w.Write([]byte("Server error"))
+				w.Write([]byte(err.Error()))
 				return
 			}
 			defer data.Close()
