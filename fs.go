@@ -2,19 +2,28 @@ package main
 
 import (
 	"./gemdrive"
+	"bytes"
 	"errors"
 	"fmt"
+	"github.com/nfnt/resize"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
 type FileSystemBackend struct {
 	rootDir string
+	gemDir  string
 }
 
-func NewFileSystemBackend(dirPath string) (*FileSystemBackend, error) {
+func NewFileSystemBackend(dirPath, gemDir string) (*FileSystemBackend, error) {
 	stat, err := os.Stat(dirPath)
 	if os.IsNotExist(err) {
 		return nil, err
@@ -22,7 +31,14 @@ func NewFileSystemBackend(dirPath string) (*FileSystemBackend, error) {
 		return nil, errors.New("Not a directory")
 	}
 
-	return &FileSystemBackend{rootDir: dirPath}, nil
+	stat, err = os.Stat(gemDir)
+	if os.IsNotExist(err) {
+		return nil, err
+	} else if !stat.IsDir() {
+		return nil, errors.New("Not a directory")
+	}
+
+	return &FileSystemBackend{rootDir: dirPath, gemDir: gemDir}, nil
 }
 
 func (fs *FileSystemBackend) List(reqPath string) (*gemdrive.Item, error) {
@@ -91,6 +107,103 @@ func (fs *FileSystemBackend) Read(reqPath string, offset, length int64) (*gemdri
 	}
 
 	return item, reader, nil
+}
+
+func (fs *FileSystemBackend) GetImage(reqPath string, size int) (io.Reader, int64, error) {
+
+	p := path.Join(fs.rootDir, reqPath)
+	sizeStr := fmt.Sprintf("%d", size)
+
+	pathParts := strings.Split(reqPath, "/")
+	parentDir := strings.Join(pathParts[:len(pathParts)-1], "/")
+	filename := pathParts[len(pathParts)-1]
+
+	imgDir := path.Join(fs.gemDir, parentDir, "gemdrive", "images", sizeStr)
+
+	gemPath := path.Join(imgDir, filename)
+
+	_, err := os.Stat(gemPath)
+	if os.IsNotExist(err) {
+
+		err := os.MkdirAll(imgDir, 0755)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		file, err := os.Open(p)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		img, err := decodeImage(reqPath, file)
+		if err != nil {
+			return nil, 0, err
+		}
+		file.Close()
+
+		bounds := img.Bounds()
+		width := bounds.Max.X
+		height := bounds.Max.Y
+
+		resizeWidth := uint(size)
+		resizeHeight := uint(size)
+		if width > height {
+			resizeHeight = 0
+		} else {
+			resizeWidth = 0
+		}
+
+		m := resize.Resize(resizeWidth, resizeHeight, img, resize.Lanczos3)
+
+		out, err := os.Create(gemPath)
+		if err != nil {
+			return nil, 0, err
+		}
+		defer out.Close()
+
+		err = encodeImage(reqPath, out, m)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	data, err := ioutil.ReadFile(gemPath)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return bytes.NewReader(data), int64(len(data)), nil
+
+}
+
+func decodeImage(filename string, reader io.Reader) (image.Image, error) {
+	ext := strings.ToLower(filepath.Ext(filename))
+
+	switch ext {
+	case ".jpg":
+		fallthrough
+	case ".jpeg":
+		return jpeg.Decode(reader)
+	case ".png":
+		return png.Decode(reader)
+	}
+
+	return nil, errors.New("Invalid image file type")
+}
+
+func encodeImage(filename string, writer io.Writer, img image.Image) error {
+	ext := strings.ToLower(filepath.Ext(filename))
+
+	switch ext {
+	case ".jpg":
+		fallthrough
+	case ".jpeg":
+		return jpeg.Encode(writer, img, nil)
+	case ".png":
+		return png.Encode(writer, img)
+	}
+
+	return nil
 }
 
 func DirToGemDrive(files []os.FileInfo) *gemdrive.Item {

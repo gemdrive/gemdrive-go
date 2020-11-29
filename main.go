@@ -17,13 +17,15 @@ import (
 func main() {
 	port := flag.Int("port", 3838, "Port")
 	var dirs arrayFlags
+	var gemDirs arrayFlags
 	flag.Var(&dirs, "dir", "Directory to add")
+	flag.Var(&gemDirs, "gemdir", "Gem Directory to add")
 	flag.Parse()
 
 	multiBackend := gemdrive.NewMultiBackend()
 
-	for _, dir := range dirs {
-		fsBackend, err := NewFileSystemBackend(dir)
+	for i, dir := range dirs {
+		fsBackend, err := NewFileSystemBackend(dir, gemDirs[i])
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -31,8 +33,8 @@ func main() {
 		multiBackend.AddBackend(path.Base(dir), fsBackend)
 	}
 
-	rcloneBackend := NewRcloneBackend()
-	multiBackend.AddBackend("rclone", rcloneBackend)
+	//rcloneBackend := NewRcloneBackend()
+	//multiBackend.AddBackend("rclone", rcloneBackend)
 
 	server := NewRdriveServer(*port, multiBackend)
 	server.Run()
@@ -68,49 +70,63 @@ func (s *RdriveServer) Run() {
 
 		w.Header()["Access-Control-Allow-Origin"] = []string{"*"}
 
-		if strings.HasSuffix(r.URL.Path, "/.gemdrive-ls.json") {
-			item, err := s.backend.List(r.URL.Path[:len(r.URL.Path)-len(".gemdrive-ls.json")])
-			if e, ok := err.(*gemdrive.Error); ok {
-				w.WriteHeader(e.HttpCode)
-				w.Write([]byte(e.Message))
-				return
-			} else if err != nil {
-				w.WriteHeader(500)
-				w.Write([]byte(err.Error()))
-				return
-			}
+		fmt.Println(r.URL.Path)
 
-			jsonBody, err := json.MarshalIndent(item, "", "  ")
-			if err != nil {
-				w.WriteHeader(500)
-				w.Write([]byte(err.Error()))
-				return
-			}
+		pathParts := strings.Split(r.URL.Path, "gemdrive/")
 
-			w.Write(jsonBody)
+		if len(pathParts) == 2 {
 
-		} else if strings.HasSuffix(r.URL.Path, "/.gemdrive-ls.tsv") {
-			item, err := s.backend.List(r.URL.Path[:len(r.URL.Path)-len(".gemdrive-ls.tsv")])
-			if e, ok := err.(*gemdrive.Error); ok {
-				w.WriteHeader(e.HttpCode)
-				w.Write([]byte(e.Message))
-				return
-			} else if err != nil {
-				w.WriteHeader(500)
-				w.Write([]byte(err.Error()))
-				return
-			}
+			gemPath := pathParts[0]
+			gemReq := pathParts[1]
 
-			outStr := ""
+			if gemReq == "meta.json" {
+				item, err := s.backend.List(gemPath)
+				if e, ok := err.(*gemdrive.Error); ok {
+					w.WriteHeader(e.HttpCode)
+					w.Write([]byte(e.Message))
+					return
+				} else if err != nil {
+					w.WriteHeader(500)
+					w.Write([]byte(err.Error()))
+					return
+				}
 
-			if item.Children != nil {
-				for name, child := range item.Children {
-					line := fmt.Sprintf("%s\t%s\t%d\n", name, child.ModTime, child.Size)
-					outStr = outStr + line
+				jsonBody, err := json.MarshalIndent(item, "", "  ")
+				if err != nil {
+					w.WriteHeader(500)
+					w.Write([]byte(err.Error()))
+					return
+				}
+
+				w.Write(jsonBody)
+			} else {
+				gemReqParts := strings.Split(gemReq, "/")
+				if gemReqParts[0] == "images" {
+
+					if b, ok := s.backend.(gemdrive.ImageServer); ok {
+						size, err := strconv.Atoi(gemReqParts[1])
+						if err != nil {
+							w.WriteHeader(400)
+							w.Write([]byte(err.Error()))
+							return
+						}
+
+						filename := gemReqParts[2]
+						imagePath := path.Join(gemPath, filename)
+						img, _, err := b.GetImage(imagePath, size)
+						if err != nil {
+							w.WriteHeader(500)
+							w.Write([]byte(err.Error()))
+							return
+						}
+
+						_, err = io.Copy(w, img)
+						if err != nil {
+							fmt.Println(err)
+						}
+					}
 				}
 			}
-
-			w.Write([]byte(outStr))
 		} else {
 			header := w.Header()
 			header.Set("Accept-Ranges", "bytes")
