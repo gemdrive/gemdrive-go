@@ -20,6 +20,7 @@ func main() {
 	var gemDirs arrayFlags
 	flag.Var(&dirs, "dir", "Directory to add")
 	flag.Var(&gemDirs, "gemdir", "Gem Directory to add")
+	rclone := flag.String("rclone", "", "Enable rclone proxy")
 	flag.Parse()
 
 	multiBackend := gemdrive.NewMultiBackend()
@@ -33,8 +34,10 @@ func main() {
 		multiBackend.AddBackend(path.Base(dir), fsBackend)
 	}
 
-	//rcloneBackend := NewRcloneBackend()
-	//multiBackend.AddBackend("rclone", rcloneBackend)
+	if *rclone != "" {
+		rcloneBackend := NewRcloneBackend()
+		multiBackend.AddBackend(*rclone, rcloneBackend)
+	}
 
 	server := NewRdriveServer(*port, multiBackend)
 	server.Run()
