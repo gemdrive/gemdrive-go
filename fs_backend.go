@@ -25,14 +25,20 @@ type FileSystemBackend struct {
 func NewFileSystemBackend(dirPath, gemDir string) (*FileSystemBackend, error) {
 	stat, err := os.Stat(dirPath)
 	if os.IsNotExist(err) {
-		return nil, err
+		err := os.MkdirAll(dirPath, 0755)
+		if err != nil {
+			return nil, err
+		}
 	} else if !stat.IsDir() {
 		return nil, errors.New("Not a directory")
 	}
 
 	stat, err = os.Stat(gemDir)
 	if os.IsNotExist(err) {
-		return nil, err
+		err := os.MkdirAll(gemDir, 0755)
+		if err != nil {
+			return nil, err
+		}
 	} else if !stat.IsDir() {
 		return nil, errors.New("Not a directory")
 	}

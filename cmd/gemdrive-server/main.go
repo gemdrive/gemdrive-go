@@ -17,16 +17,17 @@ import (
 func main() {
 	port := flag.Int("port", 3838, "Port")
 	var dirs arrayFlags
-	var gemDirs arrayFlags
 	flag.Var(&dirs, "dir", "Directory to add")
-	flag.Var(&gemDirs, "gemdir", "Gem Directory to add")
+	gemCacheDir := flag.String("meta-dir", "./gemdrive", "Gem directory")
 	rclone := flag.String("rclone", "", "Enable rclone proxy")
 	flag.Parse()
 
 	multiBackend := gemdrive.NewMultiBackend()
 
-	for i, dir := range dirs {
-		fsBackend, err := gemdrive.NewFileSystemBackend(dir, gemDirs[i])
+	for _, dir := range dirs {
+		dirName := path.Base(dir)
+		gemDir := path.Join(*gemCacheDir, dirName)
+		fsBackend, err := gemdrive.NewFileSystemBackend(dir, gemDir)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
