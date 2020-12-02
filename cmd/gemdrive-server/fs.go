@@ -1,10 +1,10 @@
 package main
 
 import (
-	"./gemdrive"
 	"bytes"
 	"errors"
 	"fmt"
+	gemdrive "github.com/gemdrive/gemdrive-go"
 	"github.com/nfnt/resize"
 	"image"
 	"image/jpeg"

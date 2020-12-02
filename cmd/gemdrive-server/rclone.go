@@ -1,9 +1,9 @@
 package main
 
 import (
-	"./gemdrive"
 	"encoding/json"
 	"fmt"
+	gemdrive "github.com/gemdrive/gemdrive-go"
 	"io"
 	"os/exec"
 	"strings"

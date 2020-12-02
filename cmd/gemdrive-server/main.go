@@ -1,11 +1,11 @@
 package main
 
 import (
-	"./gemdrive"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	gemdrive "github.com/gemdrive/gemdrive-go"
 	"io"
 	"net/http"
 	"os"
