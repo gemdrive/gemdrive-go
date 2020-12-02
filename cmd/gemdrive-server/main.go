@@ -26,7 +26,7 @@ func main() {
 	multiBackend := gemdrive.NewMultiBackend()
 
 	for i, dir := range dirs {
-		fsBackend, err := NewFileSystemBackend(dir, gemDirs[i])
+		fsBackend, err := gemdrive.NewFileSystemBackend(dir, gemDirs[i])
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -35,7 +35,7 @@ func main() {
 	}
 
 	if *rclone != "" {
-		rcloneBackend := NewRcloneBackend()
+		rcloneBackend := gemdrive.NewRcloneBackend()
 		multiBackend.AddBackend(*rclone, rcloneBackend)
 	}
 

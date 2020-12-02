@@ -1,9 +1,8 @@
-package main
+package gemdrive
 
 import (
 	"encoding/json"
 	"fmt"
-	gemdrive "github.com/gemdrive/gemdrive-go"
 	"io"
 	"os/exec"
 	"strings"
@@ -23,7 +22,7 @@ func NewRcloneBackend() *RcloneBackend {
 	return &RcloneBackend{}
 }
 
-func (b *RcloneBackend) List(reqPath string) (*gemdrive.Item, error) {
+func (b *RcloneBackend) List(reqPath string) (*Item, error) {
 	if reqPath == "/" {
 		return b.listRemotes()
 	}
@@ -33,12 +32,12 @@ func (b *RcloneBackend) List(reqPath string) (*gemdrive.Item, error) {
 		return nil, err
 	}
 
-	parentItem := &gemdrive.Item{
-		Children: make(map[string]*gemdrive.Item),
+	parentItem := &Item{
+		Children: make(map[string]*Item),
 	}
 
 	for _, item := range rcloneItems {
-		child := &gemdrive.Item{
+		child := &Item{
 			Size:    item.Size,
 			ModTime: item.ModTime,
 		}
@@ -53,13 +52,13 @@ func (b *RcloneBackend) List(reqPath string) (*gemdrive.Item, error) {
 	return parentItem, nil
 }
 
-func (b *RcloneBackend) Read(reqPath string, offset, length int64) (*gemdrive.Item, io.ReadCloser, error) {
+func (b *RcloneBackend) Read(reqPath string, offset, length int64) (*Item, io.ReadCloser, error) {
 	rcloneItems, err := b.rcloneLs(reqPath)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	item := &gemdrive.Item{
+	item := &Item{
 		Size:    rcloneItems[0].Size,
 		ModTime: rcloneItems[0].ModTime,
 	}
@@ -94,7 +93,7 @@ func (b *RcloneBackend) Read(reqPath string, offset, length int64) (*gemdrive.It
 	return item, data, nil
 }
 
-func (b *RcloneBackend) listRemotes() (*gemdrive.Item, error) {
+func (b *RcloneBackend) listRemotes() (*Item, error) {
 	cmd := exec.Command("rclone", "listremotes")
 	stdout, err := cmd.Output()
 	if err != nil {
@@ -103,15 +102,15 @@ func (b *RcloneBackend) listRemotes() (*gemdrive.Item, error) {
 
 	lines := strings.Split(string(stdout), "\n")
 
-	rootItem := &gemdrive.Item{
-		Children: make(map[string]*gemdrive.Item),
+	rootItem := &Item{
+		Children: make(map[string]*Item),
 	}
 
 	for _, line := range lines {
 		if len(line) == 0 {
 			continue
 		}
-		child := &gemdrive.Item{}
+		child := &Item{}
 		remoteName := line[:len(line)-1] + "/"
 		rootItem.Children[remoteName] = child
 	}

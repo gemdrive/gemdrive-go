@@ -1,10 +1,9 @@
-package main
+package gemdrive
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
-	gemdrive "github.com/gemdrive/gemdrive-go"
 	"github.com/nfnt/resize"
 	"image"
 	"image/jpeg"
@@ -41,7 +40,7 @@ func NewFileSystemBackend(dirPath, gemDir string) (*FileSystemBackend, error) {
 	return &FileSystemBackend{rootDir: dirPath, gemDir: gemDir}, nil
 }
 
-func (fs *FileSystemBackend) List(reqPath string) (*gemdrive.Item, error) {
+func (fs *FileSystemBackend) List(reqPath string) (*Item, error) {
 	p := path.Join(fs.rootDir, reqPath)
 
 	files, err := ReadDir(p)
@@ -54,12 +53,12 @@ func (fs *FileSystemBackend) List(reqPath string) (*gemdrive.Item, error) {
 	return item, nil
 }
 
-func (fs *FileSystemBackend) Read(reqPath string, offset, length int64) (*gemdrive.Item, io.ReadCloser, error) {
+func (fs *FileSystemBackend) Read(reqPath string, offset, length int64) (*Item, io.ReadCloser, error) {
 	p := path.Join(fs.rootDir, reqPath)
 
 	file, err := os.Open(p)
 	if err != nil {
-		return nil, nil, &gemdrive.Error{
+		return nil, nil, &Error{
 			HttpCode: 404,
 			Message:  "Not found",
 		}
@@ -67,7 +66,7 @@ func (fs *FileSystemBackend) Read(reqPath string, offset, length int64) (*gemdri
 
 	file.Seek(offset, 0)
 	if err != nil {
-		return nil, nil, &gemdrive.Error{
+		return nil, nil, &Error{
 			HttpCode: 500,
 			Message:  "Error seeking file",
 		}
@@ -75,7 +74,7 @@ func (fs *FileSystemBackend) Read(reqPath string, offset, length int64) (*gemdri
 
 	stat, err := file.Stat()
 	if err != nil {
-		return nil, nil, &gemdrive.Error{
+		return nil, nil, &Error{
 			HttpCode: 500,
 			Message:  "Error stat'ing file",
 		}
@@ -102,7 +101,7 @@ func (fs *FileSystemBackend) Read(reqPath string, offset, length int64) (*gemdri
 		}
 	}()
 
-	item := &gemdrive.Item{
+	item := &Item{
 		Size: stat.Size(),
 	}
 
@@ -206,12 +205,12 @@ func encodeImage(filename string, writer io.Writer, img image.Image) error {
 	return nil
 }
 
-func DirToGemDrive(files []os.FileInfo) *gemdrive.Item {
+func DirToGemDrive(files []os.FileInfo) *Item {
 
-	item := &gemdrive.Item{}
+	item := &Item{}
 
 	if len(files) > 0 {
-		item.Children = make(map[string]*gemdrive.Item)
+		item.Children = make(map[string]*Item)
 	}
 
 	for _, file := range files {
@@ -222,7 +221,7 @@ func DirToGemDrive(files []os.FileInfo) *gemdrive.Item {
 			name = file.Name()
 		}
 
-		item.Children[name] = &gemdrive.Item{
+		item.Children[name] = &Item{
 			Size:    file.Size(),
 			ModTime: file.ModTime().Format(time.RFC3339),
 		}
