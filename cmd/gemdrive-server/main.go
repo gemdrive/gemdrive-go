@@ -39,17 +39,17 @@ func main() {
 		multiBackend.AddBackend(*rclone, rcloneBackend)
 	}
 
-	server := NewRdriveServer(*port, multiBackend)
+	server := NewGemDriveServer(*port, multiBackend)
 	server.Run()
 }
 
-type RdriveServer struct {
+type GemDriveServer struct {
 	port    int
 	backend gemdrive.Backend
 }
 
-func NewRdriveServer(port int, backend gemdrive.Backend) *RdriveServer {
-	return &RdriveServer{
+func NewGemDriveServer(port int, backend gemdrive.Backend) *GemDriveServer {
+	return &GemDriveServer{
 		port,
 		backend,
 	}
@@ -67,7 +67,7 @@ func (i *arrayFlags) Set(value string) error {
 	return nil
 }
 
-func (s *RdriveServer) Run() {
+func (s *GemDriveServer) Run() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
