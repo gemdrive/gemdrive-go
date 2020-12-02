@@ -109,6 +109,11 @@ func (s *GemDriveServer) handleGemDriveRequest(w http.ResponseWriter, r *http.Re
 	gemPath := pathParts[0]
 	gemReq := pathParts[1]
 
+	if gemReq == "authorize" && r.Method == "POST" {
+		io.WriteString(w, "do auth")
+		return
+	}
+
 	if !s.auth.CanRead(token, gemPath) {
 		header.Set("WWW-Authenticate", "emauth realm=\"Everything\", charset=\"UTF-8\"")
 		w.WriteHeader(403)
