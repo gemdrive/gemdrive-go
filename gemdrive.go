@@ -29,3 +29,15 @@ type Error struct {
 func (e *Error) Error() string {
 	return fmt.Sprintf("%d: %s", e.HttpCode, e.Message)
 }
+
+type Config struct {
+	Smtp *SmtpConfig
+}
+
+type SmtpConfig struct {
+	Server   string
+	Username string
+	Password string
+	Port     int
+	Sender   string
+}

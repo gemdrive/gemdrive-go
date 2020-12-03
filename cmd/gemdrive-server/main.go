@@ -7,6 +7,8 @@ import (
 	"fmt"
 	gemdrive "github.com/gemdrive/gemdrive-go"
 	"io"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -21,6 +23,17 @@ func main() {
 	gemCacheDir := flag.String("meta-dir", "./gemdrive", "Gem directory")
 	rclone := flag.String("rclone", "", "Enable rclone proxy")
 	flag.Parse()
+
+	var config *gemdrive.Config
+	configBytes, err := ioutil.ReadFile("gemdrive_config.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = json.Unmarshal(configBytes, &config)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	multiBackend := gemdrive.NewMultiBackend()
 
@@ -40,7 +53,7 @@ func main() {
 		multiBackend.AddBackend(*rclone, rcloneBackend)
 	}
 
-	auth := gemdrive.NewAuth(*gemCacheDir)
+	auth := gemdrive.NewAuth(*gemCacheDir, config)
 
 	server := NewGemDriveServer(*port, multiBackend, auth)
 	server.Run()
@@ -105,20 +118,20 @@ func (s *GemDriveServer) Run() {
 
 func (s *GemDriveServer) handlePut(w http.ResponseWriter, r *http.Request) {
 
-	token, _ := extractToken(r)
-	header := w.Header()
+	//token, _ := extractToken(r)
+	//header := w.Header()
 
-	if !s.auth.CanWrite(token, r.URL.Path) {
-		header.Set("WWW-Authenticate", "emauth realm=\"Everything\", charset=\"UTF-8\"")
-		w.WriteHeader(403)
-		io.WriteString(w, "Unauthorized")
-		return
-	}
+	//if !s.auth.CanWrite(token, r.URL.Path) {
+	//	header.Set("WWW-Authenticate", "emauth realm=\"Everything\", charset=\"UTF-8\"")
+	//	w.WriteHeader(403)
+	//	io.WriteString(w, "Unauthorized")
+	//	return
+	//}
 
-	isDir := strings.HasSuffix(r.URL.Path, "/")
+	//isDir := strings.HasSuffix(r.URL.Path, "/")
 
-	if isDir {
-	}
+	//if isDir {
+	//}
 }
 
 func (s *GemDriveServer) handleGemDriveRequest(w http.ResponseWriter, r *http.Request) {
@@ -133,7 +146,9 @@ func (s *GemDriveServer) handleGemDriveRequest(w http.ResponseWriter, r *http.Re
 	gemReq := pathParts[1]
 
 	if gemReq == "authorize" && r.Method == "POST" {
-		io.WriteString(w, "do auth")
+
+		s.authorize(w, r)
+
 		return
 	}
 
@@ -191,6 +206,49 @@ func (s *GemDriveServer) handleGemDriveRequest(w http.ResponseWriter, r *http.Re
 				}
 			}
 		}
+	}
+}
+
+func (s *GemDriveServer) authorize(w http.ResponseWriter, r *http.Request) {
+
+	query := r.URL.Query()
+	id := query.Get("id")
+	code := query.Get("code")
+
+	if id != "" && code != "" {
+		token, err := s.auth.CompleteAuth(id, code)
+		if err != nil {
+			w.WriteHeader(400)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		io.WriteString(w, token)
+
+	} else {
+		bodyJson, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(400)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		var key gemdrive.Key
+		err = json.Unmarshal(bodyJson, &key)
+		if err != nil {
+			w.WriteHeader(400)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		authId, err := s.auth.Authorize(key)
+		if err != nil {
+			w.WriteHeader(400)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		io.WriteString(w, authId)
 	}
 }
 

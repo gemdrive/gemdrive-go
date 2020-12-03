@@ -1,18 +1,31 @@
 package gemdrive
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
+	"math/big"
+	"net/smtp"
 	"path"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Auth struct {
-	metaRoot string
-	db       *Database
+	metaRoot            string
+	db                  *Database
+	config              *Config
+	pendingAuthRequests map[string]*AuthRequest
+	mut                 *sync.Mutex
+}
+
+type AuthRequest struct {
+	code    string
+	keyring []*Key
 }
 
 type Acl []*AclEntry
@@ -34,6 +47,7 @@ func (a Acl) CanWrite(id string) bool {
 	return false
 }
 
+// TODO: Replace with Key?
 type AclEntry struct {
 	IdType string `json:"idType"`
 	Id     string `json:"id"`
@@ -41,9 +55,10 @@ type AclEntry struct {
 }
 
 type Key struct {
-	Path string `json:"path"`
-	Id   string `json:"id"`
-	Perm string `json:"perm"`
+	IdType string `json:"idType"`
+	Id     string `json:"id"`
+	Perm   string `json:"perm"`
+	Path   string `json:"path"`
 }
 
 func (k Key) CanRead(pathStr string) bool {
@@ -56,7 +71,7 @@ func (k Key) CanWrite(pathStr string) bool {
 }
 
 type Database struct {
-	Keys map[string]*Key `json:"keys"`
+	Keys map[string][]*Key `json:"keys"`
 	mut  *sync.Mutex
 }
 
@@ -82,7 +97,7 @@ func NewDatabase() *Database {
 	return db
 }
 
-func (db *Database) GetKey(token string) (*Key, error) {
+func (db *Database) GetKeyring(token string) ([]*Key, error) {
 	db.mut.Lock()
 	defer db.mut.Unlock()
 
@@ -94,46 +109,131 @@ func (db *Database) GetKey(token string) (*Key, error) {
 	return key, nil
 }
 
+func (db *Database) SetKeyring(token string, keyring []*Key) {
+	db.mut.Lock()
+	defer db.mut.Unlock()
+
+	db.Keys[token] = keyring
+
+	db.persist()
+}
+
 func (db *Database) persist() {
 	saveJson(db, "gemdrive_db.json")
 }
 
-func NewAuth(metaRoot string) *Auth {
+func NewAuth(metaRoot string, config *Config) *Auth {
 	db := NewDatabase()
-	return &Auth{metaRoot, db}
+
+	pendingAuthRequests := make(map[string]*AuthRequest)
+	mut := &sync.Mutex{}
+
+	return &Auth{metaRoot, db, config, pendingAuthRequests, mut}
+}
+
+func (a *Auth) Authorize(key Key) (string, error) {
+
+	requestId, err := genRandomKey()
+	if err != nil {
+		return "", err
+	}
+
+	code, err := genCode()
+	if err != nil {
+		return "", err
+	}
+
+	bodyTemplate := "From: %s <%s>\r\n" +
+		"To: %s\r\n" +
+		"Subject: Email Verification\r\n" +
+		"\r\n" +
+		"An application wants to access your data. Use the following code to complete authorization:\r\n" +
+		"\r\n" +
+		"%s\r\n"
+
+	fromText := "boringproxy email verifier"
+	fromEmail := a.config.Smtp.Sender
+	email := key.Id
+	emailBody := fmt.Sprintf(bodyTemplate, fromText, fromEmail, email, code)
+
+	emailAuth := smtp.PlainAuth("", a.config.Smtp.Username, a.config.Smtp.Password, a.config.Smtp.Server)
+	srv := fmt.Sprintf("%s:%d", a.config.Smtp.Server, a.config.Smtp.Port)
+	msg := []byte(emailBody)
+	err = smtp.SendMail(srv, emailAuth, fromEmail, []string{email}, msg)
+	if err != nil {
+		return "", err
+	}
+
+	a.mut.Lock()
+	a.pendingAuthRequests[requestId] = &AuthRequest{
+		code:    code,
+		keyring: []*Key{&key},
+	}
+	a.mut.Unlock()
+
+	// Requests expire after a certain time
+	go func() {
+		time.Sleep(600 * time.Second)
+		a.mut.Lock()
+		delete(a.pendingAuthRequests, requestId)
+		a.mut.Unlock()
+	}()
+
+	return requestId, nil
+}
+
+func (a *Auth) CompleteAuth(requestId, code string) (string, error) {
+
+	a.mut.Lock()
+	req, exists := a.pendingAuthRequests[requestId]
+	delete(a.pendingAuthRequests, requestId)
+	a.mut.Unlock()
+
+	if exists && req.code == code {
+		token, err := genRandomKey()
+		if err != nil {
+			return "", err
+		}
+		a.db.SetKeyring(token, req.keyring)
+		return token, nil
+	}
+
+	return "", nil
 }
 
 func (a *Auth) CanRead(token, pathStr string) bool {
 
-	key, err := a.db.GetKey(token)
+	acl := a.GetAcl(pathStr)
+
+	keyring, err := a.db.GetKeyring(token)
 	if err != nil {
 		return false
 	}
 
-	if !key.CanRead(pathStr) {
-		return false
+	for _, key := range keyring {
+		if key.CanRead(pathStr) && acl.CanRead(key.Id) {
+			return true
+		}
 	}
 
-	acl := a.GetAcl(pathStr)
-
-	return acl.CanRead(key.Id)
+	return false
 }
 
-func (a *Auth) CanWrite(token, pathStr string) bool {
-
-	key, err := a.db.GetKey(token)
-	if err != nil {
-		return false
-	}
-
-	if !key.CanWrite(pathStr) {
-		return false
-	}
-
-	acl := a.GetAcl(pathStr)
-
-	return acl.CanWrite(key.Id)
-}
+//func (a *Auth) CanWrite(token, pathStr string) bool {
+//
+//	key, err := a.db.GetKeyring(token)
+//	if err != nil {
+//		return false
+//	}
+//
+//	if !key.CanWrite(pathStr) {
+//		return false
+//	}
+//
+//	acl := a.GetAcl(pathStr)
+//
+//	return acl.CanWrite(key.Id)
+//}
 
 func (a *Auth) GetAcl(pathStr string) Acl {
 
@@ -190,4 +290,30 @@ func permCanWrite(perm string) bool {
 
 func permCanOwn(perm string) bool {
 	return perm == "own"
+}
+
+func genCode() (string, error) {
+	const chars string = "0123456789abcdefghijkmnpqrstuvwxyz"
+	id := ""
+	for i := 0; i < 4; i++ {
+		randIndex, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		if err != nil {
+			return "", err
+		}
+		id += string(chars[randIndex.Int64()])
+	}
+	return id, nil
+}
+
+func genRandomKey() (string, error) {
+	const chars string = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	id := ""
+	for i := 0; i < 32; i++ {
+		randIndex, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		if err != nil {
+			return "", err
+		}
+		id += string(chars[randIndex.Int64()])
+	}
+	return id, nil
 }
