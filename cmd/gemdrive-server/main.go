@@ -134,6 +134,23 @@ func (s *GemDriveServer) handlePut(w http.ResponseWriter, r *http.Request) {
 	//}
 }
 
+const LoginPageHtml = `
+<form method="POST" action="/gemdrive/authorize">
+  Email: <input type="email" name="email">
+  <input type="hidden" name="perm" value="read">
+  <input type="hidden" name="path" value="/">
+  <input type="submit" value="Submit">
+</form>
+`
+
+const LoginConfirmTemplate = `
+<form method="POST" action="/gemdrive/authorize">
+  Code: <input type="text" name="code">
+  <input type="hidden" name="id" value="%s">
+  <input type="submit" value="Submit">
+</form>
+`
+
 func (s *GemDriveServer) handleGemDriveRequest(w http.ResponseWriter, r *http.Request) {
 
 	token, _ := extractToken(r)
@@ -155,7 +172,8 @@ func (s *GemDriveServer) handleGemDriveRequest(w http.ResponseWriter, r *http.Re
 	if !s.auth.CanRead(token, gemPath) {
 		header.Set("WWW-Authenticate", "emauth realm=\"Everything\", charset=\"UTF-8\"")
 		w.WriteHeader(403)
-		io.WriteString(w, "Unauthorized")
+		w.Header().Set("Content-Type", "text/html")
+		io.WriteString(w, LoginPageHtml)
 		return
 	}
 
@@ -211,44 +229,95 @@ func (s *GemDriveServer) handleGemDriveRequest(w http.ResponseWriter, r *http.Re
 
 func (s *GemDriveServer) authorize(w http.ResponseWriter, r *http.Request) {
 
-	query := r.URL.Query()
-	id := query.Get("id")
-	code := query.Get("code")
+	contentType := r.Header.Get("Content-Type")
 
-	if id != "" && code != "" {
-		token, err := s.auth.CompleteAuth(id, code)
-		if err != nil {
-			w.WriteHeader(400)
-			io.WriteString(w, err.Error())
-			return
+	if contentType == "application/x-www-form-urlencoded" {
+		r.ParseForm()
+
+		id := r.Form.Get("id")
+		code := r.Form.Get("code")
+
+		if id != "" && code != "" {
+			token, err := s.auth.CompleteAuth(id, code)
+			if err != nil {
+				w.WriteHeader(400)
+				io.WriteString(w, err.Error())
+				return
+			}
+
+			cookie := &http.Cookie{
+				Name:  "access_token",
+				Value: token,
+				//Secure:   true,
+				HttpOnly: true,
+				MaxAge:   86400 * 365,
+				Path:     "/",
+			}
+			http.SetCookie(w, cookie)
+
+			http.Redirect(w, r, "/", 303)
+		} else {
+
+			key := gemdrive.Key{
+				IdType: "email",
+				Id:     r.Form.Get("email"),
+				Path:   r.Form.Get("path"),
+				Perm:   r.Form.Get("perm"),
+			}
+
+			authId, err := s.auth.Authorize(key)
+			if err != nil {
+				w.WriteHeader(400)
+				io.WriteString(w, err.Error())
+				return
+			}
+
+			html := fmt.Sprintf(LoginConfirmTemplate, authId)
+
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			io.WriteString(w, html)
 		}
-
-		io.WriteString(w, token)
-
 	} else {
-		bodyJson, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			w.WriteHeader(400)
-			io.WriteString(w, err.Error())
-			return
-		}
 
-		var key gemdrive.Key
-		err = json.Unmarshal(bodyJson, &key)
-		if err != nil {
-			w.WriteHeader(400)
-			io.WriteString(w, err.Error())
-			return
-		}
+		query := r.URL.Query()
+		id := query.Get("id")
+		code := query.Get("code")
 
-		authId, err := s.auth.Authorize(key)
-		if err != nil {
-			w.WriteHeader(400)
-			io.WriteString(w, err.Error())
-			return
-		}
+		if id != "" && code != "" {
+			token, err := s.auth.CompleteAuth(id, code)
+			if err != nil {
+				w.WriteHeader(400)
+				io.WriteString(w, err.Error())
+				return
+			}
 
-		io.WriteString(w, authId)
+			io.WriteString(w, token)
+
+		} else {
+			bodyJson, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(400)
+				io.WriteString(w, err.Error())
+				return
+			}
+
+			var key gemdrive.Key
+			err = json.Unmarshal(bodyJson, &key)
+			if err != nil {
+				w.WriteHeader(400)
+				io.WriteString(w, err.Error())
+				return
+			}
+
+			authId, err := s.auth.Authorize(key)
+			if err != nil {
+				w.WriteHeader(400)
+				io.WriteString(w, err.Error())
+				return
+			}
+
+			io.WriteString(w, authId)
+		}
 	}
 }
 
@@ -260,8 +329,9 @@ func (s *GemDriveServer) serveItem(w http.ResponseWriter, r *http.Request) {
 
 	if !s.auth.CanRead(token, r.URL.Path) {
 		header.Set("WWW-Authenticate", "emauth realm=\"Everything\", charset=\"UTF-8\"")
+		header.Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(403)
-		io.WriteString(w, "Unauthorized")
+		io.WriteString(w, LoginPageHtml)
 		return
 	}
 

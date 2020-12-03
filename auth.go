@@ -151,7 +151,7 @@ func (a *Auth) Authorize(key Key) (string, error) {
 		"\r\n" +
 		"%s\r\n"
 
-	fromText := "boringproxy email verifier"
+	fromText := "GemDrive email verifier"
 	fromEmail := a.config.Smtp.Sender
 	email := key.Id
 	emailBody := fmt.Sprintf(bodyTemplate, fromText, fromEmail, email, code)
@@ -173,7 +173,7 @@ func (a *Auth) Authorize(key Key) (string, error) {
 
 	// Requests expire after a certain time
 	go func() {
-		time.Sleep(600 * time.Second)
+		time.Sleep(60 * time.Second)
 		a.mut.Lock()
 		delete(a.pendingAuthRequests, requestId)
 		a.mut.Unlock()
