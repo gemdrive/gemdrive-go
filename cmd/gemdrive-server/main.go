@@ -87,7 +87,12 @@ func (s *GemDriveServer) Run() {
 		if len(pathParts) == 2 {
 			s.handleGemDriveRequest(w, r)
 		} else {
-			s.serveItem(w, r)
+			switch r.Method {
+			case "GET":
+				s.serveItem(w, r)
+			case "PUT":
+				s.handlePut(w, r)
+			}
 		}
 	})
 
@@ -95,6 +100,24 @@ func (s *GemDriveServer) Run() {
 	err := http.ListenAndServe(fmt.Sprintf(":%d", s.port), nil)
 	if err != nil {
 		fmt.Println(err)
+	}
+}
+
+func (s *GemDriveServer) handlePut(w http.ResponseWriter, r *http.Request) {
+
+	token, _ := extractToken(r)
+	header := w.Header()
+
+	if !s.auth.CanWrite(token, r.URL.Path) {
+		header.Set("WWW-Authenticate", "emauth realm=\"Everything\", charset=\"UTF-8\"")
+		w.WriteHeader(403)
+		io.WriteString(w, "Unauthorized")
+		return
+	}
+
+	isDir := strings.HasSuffix(r.URL.Path, "/")
+
+	if isDir {
 	}
 }
 

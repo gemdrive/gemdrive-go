@@ -18,13 +18,19 @@ type Auth struct {
 type Acl []*AclEntry
 
 func (a Acl) CanRead(id string) bool {
-
 	for _, entry := range a {
 		if entry.Id == id && permCanRead(entry.Perm) {
 			return true
 		}
 	}
-
+	return false
+}
+func (a Acl) CanWrite(id string) bool {
+	for _, entry := range a {
+		if entry.Id == id && permCanWrite(entry.Perm) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -43,6 +49,10 @@ type Key struct {
 func (k Key) CanRead(pathStr string) bool {
 	isSubpath := strings.HasPrefix(pathStr, k.Path)
 	return isSubpath && permCanRead(k.Perm)
+}
+func (k Key) CanWrite(pathStr string) bool {
+	isSubpath := strings.HasPrefix(pathStr, k.Path)
+	return isSubpath && permCanWrite(k.Perm)
 }
 
 type Database struct {
@@ -107,6 +117,22 @@ func (a *Auth) CanRead(token, pathStr string) bool {
 	acl := a.GetAcl(pathStr)
 
 	return acl.CanRead(key.Id)
+}
+
+func (a *Auth) CanWrite(token, pathStr string) bool {
+
+	key, err := a.db.GetKey(token)
+	if err != nil {
+		return false
+	}
+
+	if !key.CanWrite(pathStr) {
+		return false
+	}
+
+	acl := a.GetAcl(pathStr)
+
+	return acl.CanWrite(key.Id)
 }
 
 func (a *Auth) GetAcl(pathStr string) Acl {
