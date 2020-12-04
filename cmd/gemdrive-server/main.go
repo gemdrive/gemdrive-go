@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/GeertJohan/go.rice"
 	gemdrive "github.com/gemdrive/gemdrive-go"
 	"io"
 	"io/ioutil"
@@ -60,16 +61,17 @@ func main() {
 }
 
 type GemDriveServer struct {
-	port    int
-	backend gemdrive.Backend
-	auth    *gemdrive.Auth
+	port      int
+	backend   gemdrive.Backend
+	auth      *gemdrive.Auth
+	loginHtml []byte
 }
 
 func NewGemDriveServer(port int, backend gemdrive.Backend, auth *gemdrive.Auth) *GemDriveServer {
 	return &GemDriveServer{
-		port,
-		backend,
-		auth,
+		port:    port,
+		backend: backend,
+		auth:    auth,
 	}
 }
 
@@ -88,6 +90,20 @@ func (i *arrayFlags) Set(value string) error {
 func (s *GemDriveServer) Run() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+		box, err := rice.FindBox("files")
+		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		s.loginHtml, err = box.Bytes("login.html")
+		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
 
 		header := w.Header()
 
@@ -162,7 +178,7 @@ func (s *GemDriveServer) handleGemDriveRequest(w http.ResponseWriter, r *http.Re
 	gemPath := pathParts[0]
 	gemReq := pathParts[1]
 
-	if gemReq == "authorize" && r.Method == "POST" {
+	if gemReq == "authorize" {
 
 		s.authorize(w, r)
 
@@ -229,95 +245,55 @@ func (s *GemDriveServer) handleGemDriveRequest(w http.ResponseWriter, r *http.Re
 
 func (s *GemDriveServer) authorize(w http.ResponseWriter, r *http.Request) {
 
-	contentType := r.Header.Get("Content-Type")
+	query := r.URL.Query()
+	id := query.Get("id")
+	code := query.Get("code")
 
-	if contentType == "application/x-www-form-urlencoded" {
-		r.ParseForm()
-
-		id := r.Form.Get("id")
-		code := r.Form.Get("code")
-
-		if id != "" && code != "" {
-			token, err := s.auth.CompleteAuth(id, code)
-			if err != nil {
-				w.WriteHeader(400)
-				io.WriteString(w, err.Error())
-				return
-			}
-
-			cookie := &http.Cookie{
-				Name:  "access_token",
-				Value: token,
-				//Secure:   true,
-				HttpOnly: true,
-				MaxAge:   86400 * 365,
-				Path:     "/",
-			}
-			http.SetCookie(w, cookie)
-
-			http.Redirect(w, r, "/", 303)
-		} else {
-
-			key := gemdrive.Key{
-				IdType: "email",
-				Id:     r.Form.Get("email"),
-				Path:   r.Form.Get("path"),
-				Perm:   r.Form.Get("perm"),
-			}
-
-			authId, err := s.auth.Authorize(key)
-			if err != nil {
-				w.WriteHeader(400)
-				io.WriteString(w, err.Error())
-				return
-			}
-
-			html := fmt.Sprintf(LoginConfirmTemplate, authId)
-
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			io.WriteString(w, html)
+	if id != "" && code != "" {
+		token, err := s.auth.CompleteAuth(id, code)
+		if err != nil {
+			w.WriteHeader(400)
+			io.WriteString(w, err.Error())
+			return
 		}
+
+		cookie := &http.Cookie{
+			Name:  "access_token",
+			Value: token,
+			//Secure:   true,
+			HttpOnly: true,
+			MaxAge:   86400 * 365,
+			Path:     "/",
+			SameSite: http.SameSiteLaxMode,
+		}
+		http.SetCookie(w, cookie)
+
+		io.WriteString(w, token)
+
 	} else {
-
-		query := r.URL.Query()
-		id := query.Get("id")
-		code := query.Get("code")
-
-		if id != "" && code != "" {
-			token, err := s.auth.CompleteAuth(id, code)
-			if err != nil {
-				w.WriteHeader(400)
-				io.WriteString(w, err.Error())
-				return
-			}
-
-			io.WriteString(w, token)
-
-		} else {
-			bodyJson, err := ioutil.ReadAll(r.Body)
-			if err != nil {
-				w.WriteHeader(400)
-				io.WriteString(w, err.Error())
-				return
-			}
-
-			var key gemdrive.Key
-			err = json.Unmarshal(bodyJson, &key)
-			if err != nil {
-				w.WriteHeader(400)
-				io.WriteString(w, err.Error())
-				return
-			}
-
-			authId, err := s.auth.Authorize(key)
-			if err != nil {
-				w.WriteHeader(400)
-				io.WriteString(w, err.Error())
-				return
-			}
-
-			io.WriteString(w, authId)
+		bodyJson, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(400)
+			io.WriteString(w, err.Error())
+			return
 		}
+
+		var key gemdrive.Key
+		err = json.Unmarshal(bodyJson, &key)
+		if err != nil {
+			w.WriteHeader(400)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		authId, err := s.auth.Authorize(key)
+		if err != nil {
+			w.WriteHeader(400)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		io.WriteString(w, authId)
 	}
 }
 
@@ -331,7 +307,7 @@ func (s *GemDriveServer) serveItem(w http.ResponseWriter, r *http.Request) {
 		header.Set("WWW-Authenticate", "emauth realm=\"Everything\", charset=\"UTF-8\"")
 		header.Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(403)
-		io.WriteString(w, LoginPageHtml)
+		w.Write(s.loginHtml)
 		return
 	}
 

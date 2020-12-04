@@ -1,0 +1,91 @@
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GemDrive Login</title>
+
+    <style>
+      .content {
+        margin: 0 auto;
+        max-width: 640px;
+        font-family: Helvetica;
+      }
+    </style>
+
+    <template id='login-form-template'>
+      <form method="POST" action="/gemdrive/authorize">
+        <label for='email-input'>Email: </label>
+        <input id='email-input' type="email" name="email">
+        <input id='perm-input' type="hidden" name="perm" value="read">
+        <input id='path-input' type="hidden" name="path" value="/">
+        <input id='submit-btn' type="submit" value="Submit">
+      </form>
+    </template>
+
+    <template id='confirm-login-template'>
+      <form method="GET" action="/gemdrive/authorize">
+        <label for='code-input'>Code: </label>
+        <input id='code-input' type="text" name="code">
+        <input id='code-submit' type="submit" value="Submit">
+      </form>
+    </template>
+  </head>
+
+  <body>
+
+    <div class='content'></div>
+
+    <script type='module'>
+
+      const url = window.location.href;
+      
+      const form = document.querySelector('#login-form-template')
+        .content.cloneNode(true).querySelector('form');
+      const emailInput = form.querySelector('#email-input');
+      const permInput = form.querySelector('#perm-input');
+      const pathInput = form.querySelector('#path-input');
+      const submitBtn = form.querySelector('#submit-btn');
+
+      const confirmForm = document.querySelector('#confirm-login-template')
+        .content.cloneNode(true).querySelector('form');
+      const codeInput = confirmForm.querySelector('#code-input');
+      const codeSubmit = confirmForm.querySelector('#code-submit');
+
+      const content = document.querySelector('.content');
+      content.appendChild(form);
+
+      let id;
+      submitBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+
+        const requestId = await fetch('/gemdrive/authorize', {
+          method: 'POST',
+          body: JSON.stringify({
+            idType: 'email',
+            id: emailInput.value,
+            perm: permInput.value,
+            path: pathInput.value,
+          }),
+        }).then(r => r.text());
+
+        id = requestId;
+
+        console.log(requestId);
+        content.replaceChild(confirmForm, form);
+      });
+
+      codeSubmit.addEventListener('click', async (e) => {
+        e.preventDefault();
+
+        const code = codeInput.value;
+        await fetch(`/gemdrive/authorize?id=${id}&code=${code}`)
+          .then(r => r.text());
+
+        window.location.href = url;
+      });
+
+
+    </script>
+  </body>
+
+</html>
