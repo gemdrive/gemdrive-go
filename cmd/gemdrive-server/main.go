@@ -150,28 +150,17 @@ func (s *GemDriveServer) handlePut(w http.ResponseWriter, r *http.Request) {
 	//}
 }
 
-const LoginPageHtml = `
-<form method="POST" action="/gemdrive/authorize">
-  Email: <input type="email" name="email">
-  <input type="hidden" name="perm" value="read">
-  <input type="hidden" name="path" value="/">
-  <input type="submit" value="Submit">
-</form>
-`
-
-const LoginConfirmTemplate = `
-<form method="POST" action="/gemdrive/authorize">
-  Code: <input type="text" name="code">
-  <input type="hidden" name="id" value="%s">
-  <input type="submit" value="Submit">
-</form>
-`
+func (s *GemDriveServer) sendLoginPage(w http.ResponseWriter, r *http.Request) {
+	header := w.Header()
+	header.Set("WWW-Authenticate", "emauth realm=\"Everything\", charset=\"UTF-8\"")
+	header.Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(403)
+	w.Write(s.loginHtml)
+}
 
 func (s *GemDriveServer) handleGemDriveRequest(w http.ResponseWriter, r *http.Request) {
 
 	token, _ := extractToken(r)
-
-	header := w.Header()
 
 	pathParts := strings.Split(r.URL.Path, "gemdrive/")
 
@@ -186,10 +175,7 @@ func (s *GemDriveServer) handleGemDriveRequest(w http.ResponseWriter, r *http.Re
 	}
 
 	if !s.auth.CanRead(token, gemPath) {
-		header.Set("WWW-Authenticate", "emauth realm=\"Everything\", charset=\"UTF-8\"")
-		w.WriteHeader(403)
-		w.Header().Set("Content-Type", "text/html")
-		io.WriteString(w, LoginPageHtml)
+		s.sendLoginPage(w, r)
 		return
 	}
 
@@ -304,10 +290,7 @@ func (s *GemDriveServer) serveItem(w http.ResponseWriter, r *http.Request) {
 	header := w.Header()
 
 	if !s.auth.CanRead(token, r.URL.Path) {
-		header.Set("WWW-Authenticate", "emauth realm=\"Everything\", charset=\"UTF-8\"")
-		header.Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(403)
-		w.Write(s.loginHtml)
+		s.sendLoginPage(w, r)
 		return
 	}
 
