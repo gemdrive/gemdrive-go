@@ -17,6 +17,10 @@ type Backend interface {
 	Read(path string, offset, length int64) (*Item, io.ReadCloser, error)
 }
 
+type WritableBackend interface {
+	MakeDir(path string, recursive bool) error
+}
+
 type ImageServer interface {
 	GetImage(path string, size int) (io.Reader, int64, error)
 }

@@ -219,21 +219,23 @@ func (a *Auth) CanRead(token, pathStr string) bool {
 	return false
 }
 
-//func (a *Auth) CanWrite(token, pathStr string) bool {
-//
-//	key, err := a.db.GetKeyring(token)
-//	if err != nil {
-//		return false
-//	}
-//
-//	if !key.CanWrite(pathStr) {
-//		return false
-//	}
-//
-//	acl := a.GetAcl(pathStr)
-//
-//	return acl.CanWrite(key.Id)
-//}
+func (a *Auth) CanWrite(token, pathStr string) bool {
+
+	acl := a.GetAcl(pathStr)
+
+	keyring, err := a.db.GetKeyring(token)
+	if err != nil {
+		return false
+	}
+
+	for _, key := range keyring {
+		if key.CanWrite(pathStr) && acl.CanWrite(key.Id) {
+			return true
+		}
+	}
+
+	return false
+}
 
 func (a *Auth) GetAcl(pathStr string) Acl {
 

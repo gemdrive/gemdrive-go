@@ -114,6 +114,31 @@ func (fs *FileSystemBackend) Read(reqPath string, offset, length int64) (*Item, 
 	return item, reader, nil
 }
 
+func (fs *FileSystemBackend) MakeDir(reqPath string, recursive bool) error {
+	fsPath := path.Join(fs.rootDir, reqPath)
+
+	if recursive {
+		err := os.MkdirAll(fsPath, 0755)
+		if err != nil {
+			return err
+		}
+	} else {
+		_, err := os.Stat(fsPath)
+		exists := !os.IsNotExist(err)
+
+		if exists {
+			return errors.New("Directory exists")
+		} else {
+			err := os.Mkdir(fsPath, 0755)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (fs *FileSystemBackend) GetImage(reqPath string, size int) (io.Reader, int64, error) {
 
 	p := path.Join(fs.rootDir, reqPath)
