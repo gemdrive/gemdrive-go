@@ -127,6 +127,8 @@ func (s *GemDriveServer) Run() {
 				s.serveItem(w, r)
 			case "PUT":
 				s.handlePut(w, r)
+			case "PATCH":
+				s.handlePatch(w, r)
 			}
 		}
 	})
@@ -154,6 +156,7 @@ func (s *GemDriveServer) handlePut(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		w.WriteHeader(500)
 		io.WriteString(w, "Backend does not support writing")
+		return
 	}
 
 	isDir := strings.HasSuffix(r.URL.Path, "/")
@@ -165,6 +168,74 @@ func (s *GemDriveServer) handlePut(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(400)
 			io.WriteString(w, err.Error())
 		}
+	} else {
+		offset := 0
+		truncate := true
+		overwrite := query.Get("overwrite") == "true"
+		size, err := strconv.Atoi(r.Header.Get("Content-Length"))
+		if err != nil {
+			w.WriteHeader(400)
+			io.WriteString(w, "Invalid content length")
+		}
+
+		err = backend.Write(r.URL.Path, r.Body, int64(offset), int64(size), overwrite, truncate)
+		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+		}
+	}
+}
+
+func (s *GemDriveServer) handlePatch(w http.ResponseWriter, r *http.Request) {
+
+	token, _ := extractToken(r)
+
+	query := r.URL.Query()
+
+	if !s.auth.CanWrite(token, r.URL.Path) {
+		s.sendLoginPage(w, r)
+		return
+	}
+
+	backend, ok := s.backend.(gemdrive.WritableBackend)
+
+	if !ok {
+		w.WriteHeader(500)
+		io.WriteString(w, "Backend does not support writing")
+		return
+	}
+
+	overwrite := true
+	truncate := false
+
+	offsetParam := query.Get("offset")
+
+	var offset int
+	if offsetParam == "" {
+		offset = 0
+	} else {
+
+		var err error
+		offset, err = strconv.Atoi(query.Get("offset"))
+		if err != nil {
+			w.WriteHeader(400)
+			io.WriteString(w, "Invalid offset")
+			return
+		}
+	}
+
+	size, err := strconv.Atoi(r.Header.Get("Content-Length"))
+	if err != nil {
+		w.WriteHeader(400)
+		io.WriteString(w, "Invalid content length")
+		return
+	}
+
+	err = backend.Write(r.URL.Path, r.Body, int64(offset), int64(size), overwrite, truncate)
+	if err != nil {
+		w.WriteHeader(500)
+		io.WriteString(w, err.Error())
+		return
 	}
 }
 

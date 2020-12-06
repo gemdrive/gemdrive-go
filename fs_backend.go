@@ -139,6 +139,43 @@ func (fs *FileSystemBackend) MakeDir(reqPath string, recursive bool) error {
 	return nil
 }
 
+func (fs *FileSystemBackend) Write(reqPath string, data io.Reader, offset, length int64, overwrite, truncate bool) error {
+
+	fsPath := path.Join(fs.rootDir, reqPath)
+
+	mask := os.O_WRONLY | os.O_CREATE
+
+	if !overwrite {
+		mask = mask | os.O_EXCL
+	}
+
+	if truncate {
+		mask = mask | os.O_TRUNC
+	}
+
+	file, err := os.OpenFile(fsPath, mask, 0666)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.Seek(offset, 0)
+	if err != nil {
+		return err
+	}
+
+	n, err := io.Copy(file, data)
+	if err != nil {
+		return err
+	}
+
+	if n != length {
+		return errors.New("n did not match length")
+	}
+
+	return nil
+}
+
 func (fs *FileSystemBackend) GetImage(reqPath string, size int) (io.Reader, int64, error) {
 
 	p := path.Join(fs.rootDir, reqPath)
