@@ -114,6 +114,11 @@ func (s *GemDriveServer) Run() {
 		header := w.Header()
 
 		header["Access-Control-Allow-Origin"] = []string{"*"}
+		header["Access-Control-Allow-Methods"] = []string{"*"}
+		header["Access-Control-Allow-Headers"] = []string{"*"}
+		if r.Method == "OPTIONS" {
+			return
+		}
 
 		logLine := fmt.Sprintf("%s\t%s", r.Method, r.URL.Path)
 		fmt.Println(logLine)
