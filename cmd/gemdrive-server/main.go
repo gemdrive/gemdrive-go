@@ -11,7 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	//"os"
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -22,7 +22,7 @@ func main() {
 	var dirs arrayFlags
 	flag.Var(&dirs, "dir", "Directory to add")
 	gemCacheDir := flag.String("meta-dir", "./gemdrive", "Gem directory")
-	//rclone := flag.String("rclone", "", "Enable rclone proxy")
+	rclone := flag.String("rclone", "", "Enable rclone proxy")
 	flag.Parse()
 
 	var config *gemdrive.Config
@@ -36,33 +36,33 @@ func main() {
 		log.Fatal(err)
 	}
 
-	//multiBackend := gemdrive.NewMultiBackend()
+	multiBackend := gemdrive.NewMultiBackend()
 
-	//for _, dir := range dirs {
-	//	dirName := path.Base(dir)
-	//	gemDir := path.Join(*gemCacheDir, dirName)
-	//	fsBackend, err := gemdrive.NewFileSystemBackend(dir, gemDir)
-	//	if err != nil {
-	//		fmt.Println(err)
-	//		os.Exit(1)
-	//	}
-	//	multiBackend.AddBackend(path.Base(dir), fsBackend)
-	//}
+	for _, dir := range dirs {
+		dirName := path.Base(dir)
+		gemDir := path.Join(*gemCacheDir, dirName)
+		fsBackend, err := gemdrive.NewFileSystemBackend(dir, gemDir)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		multiBackend.AddBackend(path.Base(dir), fsBackend)
+	}
 
-	//if *rclone != "" {
-	//	rcloneBackend := gemdrive.NewRcloneBackend()
-	//	multiBackend.AddBackend(*rclone, rcloneBackend)
-	//}
+	if *rclone != "" {
+		rcloneBackend := gemdrive.NewRcloneBackend()
+		multiBackend.AddBackend(*rclone, rcloneBackend)
+	}
 
-	dir := dirs[0]
-	dirName := path.Base(dir)
-	gemDir := path.Join(*gemCacheDir, dirName)
-	fmt.Println(dir, gemDir)
-	fsBackend, err := gemdrive.NewFileSystemBackend(dir, gemDir)
+	//dir := dirs[0]
+	//dirName := path.Base(dir)
+	//gemDir := path.Join(*gemCacheDir, dirName)
+	//fmt.Println(dir, gemDir)
+	//fsBackend, err := gemdrive.NewFileSystemBackend(dir, gemDir)
 	auth := gemdrive.NewAuth(*gemCacheDir, config)
 
-	//server := NewGemDriveServer(*port, multiBackend, auth)
-	server := NewGemDriveServer(*port, fsBackend, auth)
+	server := NewGemDriveServer(*port, multiBackend, auth)
+	//server := NewGemDriveServer(*port, fsBackend, auth)
 	server.Run()
 }
 
@@ -115,7 +115,8 @@ func (s *GemDriveServer) Run() {
 
 		header["Access-Control-Allow-Origin"] = []string{"*"}
 
-		fmt.Println(r.URL.Path)
+		logLine := fmt.Sprintf("%s\t%s", r.Method, r.URL.Path)
+		fmt.Println(logLine)
 
 		pathParts := strings.Split(r.URL.Path, "gemdrive/")
 

@@ -56,6 +56,55 @@ func (b *MultiBackend) Read(reqPath string, offset, length int64) (*Item, io.Rea
 	return b.backends[backendName].Read(subPath, offset, length)
 }
 
+func (b *MultiBackend) MakeDir(reqPath string, recursive bool) error {
+	backendName, subPath, err := b.parsePath(reqPath)
+	if err != nil {
+		return &Error{
+			HttpCode: 404,
+			Message:  "Not found",
+		}
+	}
+
+	if backend, ok := b.backends[backendName].(WritableBackend); ok {
+		return backend.MakeDir(subPath, recursive)
+	}
+
+	return nil
+}
+
+func (b *MultiBackend) Write(reqPath string, data io.Reader, offset, length int64, overwrite, truncate bool) error {
+
+	backendName, subPath, err := b.parsePath(reqPath)
+	if err != nil {
+		return &Error{
+			HttpCode: 404,
+			Message:  "Not found",
+		}
+	}
+
+	if backend, ok := b.backends[backendName].(WritableBackend); ok {
+		return backend.Write(subPath, data, offset, length, overwrite, truncate)
+	}
+
+	return nil
+}
+
+func (b *MultiBackend) Delete(reqPath string, recursive bool) error {
+	backendName, subPath, err := b.parsePath(reqPath)
+	if err != nil {
+		return &Error{
+			HttpCode: 404,
+			Message:  "Not found",
+		}
+	}
+
+	if backend, ok := b.backends[backendName].(WritableBackend); ok {
+		return backend.Delete(subPath, recursive)
+	}
+
+	return nil
+}
+
 func (b *MultiBackend) GetImage(reqPath string, size int) (io.Reader, int64, error) {
 
 	backendName, subPath, err := b.parsePath(reqPath)
