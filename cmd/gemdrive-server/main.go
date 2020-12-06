@@ -129,6 +129,8 @@ func (s *GemDriveServer) Run() {
 				s.handlePut(w, r)
 			case "PATCH":
 				s.handlePatch(w, r)
+			case "DELETE":
+				s.handleDelete(w, r)
 			}
 		}
 	})
@@ -232,6 +234,33 @@ func (s *GemDriveServer) handlePatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = backend.Write(r.URL.Path, r.Body, int64(offset), int64(size), overwrite, truncate)
+	if err != nil {
+		w.WriteHeader(500)
+		io.WriteString(w, err.Error())
+		return
+	}
+}
+
+func (s *GemDriveServer) handleDelete(w http.ResponseWriter, r *http.Request) {
+	token, _ := extractToken(r)
+
+	query := r.URL.Query()
+
+	if !s.auth.CanWrite(token, r.URL.Path) {
+		s.sendLoginPage(w, r)
+		return
+	}
+
+	backend, ok := s.backend.(gemdrive.WritableBackend)
+
+	if !ok {
+		w.WriteHeader(500)
+		io.WriteString(w, "Backend does not support writing")
+		return
+	}
+
+	recursive := query.Get("recursive") == "true"
+	err := backend.Delete(r.URL.Path, recursive)
 	if err != nil {
 		w.WriteHeader(500)
 		io.WriteString(w, err.Error())

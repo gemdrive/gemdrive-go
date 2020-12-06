@@ -176,6 +176,25 @@ func (fs *FileSystemBackend) Write(reqPath string, data io.Reader, offset, lengt
 	return nil
 }
 
+func (fs *FileSystemBackend) Delete(reqPath string, recursive bool) error {
+
+	fsPath := path.Join(fs.rootDir, reqPath)
+
+	if recursive {
+		err := os.RemoveAll(fsPath)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := os.Remove(fsPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (fs *FileSystemBackend) GetImage(reqPath string, size int) (io.Reader, int64, error) {
 
 	p := path.Join(fs.rootDir, reqPath)

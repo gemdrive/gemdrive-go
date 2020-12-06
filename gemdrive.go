@@ -20,6 +20,7 @@ type Backend interface {
 type WritableBackend interface {
 	MakeDir(path string, recursive bool) error
 	Write(path string, data io.Reader, offset, length int64, overwrite, truncate bool) error
+	Delete(path string, recursive bool) error
 }
 
 type ImageServer interface {
