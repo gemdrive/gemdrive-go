@@ -126,7 +126,6 @@ func (db *Database) SetKeyring(token string, keyring []*Key) {
 }
 
 func (db *Database) persist() {
-	fmt.Println("persist", db, db.path)
 	saveJson(db, db.path)
 }
 
@@ -147,7 +146,6 @@ func NewAuth(cacheDir string, config *Config) (*Auth, error) {
 			Perm:   "own",
 		}
 		var acl Acl = []*AclEntry{entry}
-		fmt.Println(acl)
 
 		err := saveJson(acl, rootAclPath)
 		if err != nil {
