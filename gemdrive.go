@@ -37,7 +37,8 @@ func (e *Error) Error() string {
 }
 
 type Config struct {
-	Smtp *SmtpConfig
+	AdminEmail string
+	Smtp       *SmtpConfig
 }
 
 type SmtpConfig struct {

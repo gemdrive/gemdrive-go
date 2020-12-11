@@ -9,6 +9,7 @@ import (
 	"log"
 	"math/big"
 	"net/smtp"
+	"os"
 	"path"
 	"strings"
 	"sync"
@@ -77,6 +78,7 @@ type Database struct {
 }
 
 func NewDatabase(dir string) *Database {
+
 	dbPath := path.Join(dir, "gemdrive_auth_db.json")
 	dbJson, err := ioutil.ReadFile(dbPath)
 	if err != nil {
@@ -89,9 +91,11 @@ func NewDatabase(dir string) *Database {
 	err = json.Unmarshal(dbJson, &db)
 	if err != nil {
 		db = &Database{
-			path: dbPath,
+			Keys: make(map[string][]*Key),
 		}
 	}
+
+	db.path = dbPath
 
 	db.mut = &sync.Mutex{}
 
@@ -122,16 +126,41 @@ func (db *Database) SetKeyring(token string, keyring []*Key) {
 }
 
 func (db *Database) persist() {
+	fmt.Println("persist", db, db.path)
 	saveJson(db, db.path)
 }
 
-func NewAuth(cacheDir string, config *Config) *Auth {
+func NewAuth(cacheDir string, config *Config) (*Auth, error) {
+
+	rootAclPath := path.Join(cacheDir, "gemdrive", "acl.json")
+
+	err := os.MkdirAll(path.Dir(rootAclPath), 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = os.Stat(rootAclPath)
+	if os.IsNotExist(err) {
+		entry := &AclEntry{
+			IdType: "email",
+			Id:     config.AdminEmail,
+			Perm:   "own",
+		}
+		var acl Acl = []*AclEntry{entry}
+		fmt.Println(acl)
+
+		err := saveJson(acl, rootAclPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	db := NewDatabase(cacheDir)
 
 	pendingAuthRequests := make(map[string]*AuthRequest)
 	mut := &sync.Mutex{}
 
-	return &Auth{cacheDir, db, config, pendingAuthRequests, mut}
+	return &Auth{cacheDir, db, config, pendingAuthRequests, mut}, nil
 }
 
 func (a *Auth) Authorize(key Key) (string, error) {
