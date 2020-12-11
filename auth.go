@@ -16,7 +16,7 @@ import (
 )
 
 type Auth struct {
-	metaRoot            string
+	cacheDir            string
 	db                  *Database
 	config              *Config
 	pendingAuthRequests map[string]*AuthRequest
@@ -73,21 +73,24 @@ func (k Key) CanWrite(pathStr string) bool {
 type Database struct {
 	Keys map[string][]*Key `json:"keys"`
 	mut  *sync.Mutex
+	path string
 }
 
-func NewDatabase() *Database {
-	dbJson, err := ioutil.ReadFile("gemdrive_db.json")
+func NewDatabase(dir string) *Database {
+	dbPath := path.Join(dir, "gemdrive_auth_db.json")
+	dbJson, err := ioutil.ReadFile(dbPath)
 	if err != nil {
-		log.Println("failed reading gemdrive_db.json")
-		dbJson = []byte("{}")
+		log.Println("failed reading gemdrive_auth_db.json")
+		dbJson = []byte("")
 	}
 
 	var db *Database
 
 	err = json.Unmarshal(dbJson, &db)
 	if err != nil {
-		log.Println(err)
-		db = &Database{}
+		db = &Database{
+			path: dbPath,
+		}
 	}
 
 	db.mut = &sync.Mutex{}
@@ -119,16 +122,16 @@ func (db *Database) SetKeyring(token string, keyring []*Key) {
 }
 
 func (db *Database) persist() {
-	saveJson(db, "gemdrive_db.json")
+	saveJson(db, db.path)
 }
 
-func NewAuth(metaRoot string, config *Config) *Auth {
-	db := NewDatabase()
+func NewAuth(cacheDir string, config *Config) *Auth {
+	db := NewDatabase(cacheDir)
 
 	pendingAuthRequests := make(map[string]*AuthRequest)
 	mut := &sync.Mutex{}
 
-	return &Auth{metaRoot, db, config, pendingAuthRequests, mut}
+	return &Auth{cacheDir, db, config, pendingAuthRequests, mut}
 }
 
 func (a *Auth) Authorize(key Key) (string, error) {
@@ -243,7 +246,7 @@ func (a *Auth) GetAcl(pathStr string) Acl {
 
 	for i := len(parts) - 1; i > 0; i-- {
 		p := strings.Join(parts[:i], "/")
-		aclPath := path.Join(a.metaRoot, p, "gemdrive", "acl.json")
+		aclPath := path.Join(a.cacheDir, p, "gemdrive", "acl.json")
 
 		acl, err := readAcl(aclPath)
 		if err == nil {
