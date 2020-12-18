@@ -13,7 +13,7 @@ type Item struct {
 }
 
 type Backend interface {
-	List(path string) (*Item, error)
+	List(path string, maxDepth int) (*Item, error)
 	Read(path string, offset, length int64) (*Item, io.ReadCloser, error)
 }
 

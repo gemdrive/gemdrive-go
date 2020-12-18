@@ -19,7 +19,7 @@ func (b *MultiBackend) AddBackend(name string, backend Backend) error {
 	return nil
 }
 
-func (b *MultiBackend) List(reqPath string) (*Item, error) {
+func (b *MultiBackend) List(reqPath string, maxDepth int) (*Item, error) {
 	if reqPath == "/" {
 		rootItem := &Item{
 			Children: make(map[string]*Item),
@@ -27,6 +27,17 @@ func (b *MultiBackend) List(reqPath string) (*Item, error) {
 
 		for name := range b.backends {
 			rootItem.Children[name+"/"] = &Item{}
+		}
+
+		if maxDepth == 0 || maxDepth > 1 {
+			for name, backend := range b.backends {
+				child, err := backend.List("/", maxDepth-1)
+				if err != nil {
+					return nil, err
+				}
+
+				rootItem.Children[name+"/"] = child
+			}
 		}
 
 		return rootItem, nil
@@ -40,7 +51,7 @@ func (b *MultiBackend) List(reqPath string) (*Item, error) {
 		}
 	}
 
-	return b.backends[backendName].List(subPath)
+	return b.backends[backendName].List(subPath, maxDepth)
 }
 
 func (b *MultiBackend) Read(reqPath string, offset, length int64) (*Item, io.ReadCloser, error) {

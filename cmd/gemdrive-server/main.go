@@ -53,7 +53,7 @@ func main() {
 	//gemDir := path.Join(*gemCacheDir, dirName)
 	//fmt.Println(dir, gemDir)
 	//fsBackend, err := gemdrive.NewFileSystemBackend(dir, gemDir)
-	auth := gemdrive.NewAuth(*gemCacheDir, config)
+	auth, err := gemdrive.NewAuth(*gemCacheDir, config)
 
 	server := gemdrive.NewServer(*port, multiBackend, auth)
 	//server := NewServer(*port, fsBackend, auth)

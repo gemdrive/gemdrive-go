@@ -22,7 +22,7 @@ func NewRcloneBackend() *RcloneBackend {
 	return &RcloneBackend{}
 }
 
-func (b *RcloneBackend) List(reqPath string) (*Item, error) {
+func (b *RcloneBackend) List(reqPath string, maxDepth int) (*Item, error) {
 	if reqPath == "/" {
 		return b.listRemotes()
 	}

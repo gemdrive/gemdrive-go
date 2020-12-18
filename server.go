@@ -241,7 +241,20 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if gemReq == "meta.json" {
-		item, err := s.backend.List(gemPath)
+
+		maxDepth := 1
+		maxDepthParam := r.URL.Query().Get("max-depth")
+		if maxDepthParam != "" {
+			var err error
+			maxDepth, err = strconv.Atoi(maxDepthParam)
+			if err != nil {
+				w.WriteHeader(400)
+				w.Write([]byte("Invalid max-depth param"))
+				return
+			}
+		}
+
+		item, err := s.backend.List(gemPath, maxDepth)
 		if e, ok := err.(*Error); ok {
 			w.WriteHeader(e.HttpCode)
 			w.Write([]byte(e.Message))
@@ -252,6 +265,7 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		//jsonBody, err := json.Marshal(item)
 		jsonBody, err := json.MarshalIndent(item, "", "  ")
 		if err != nil {
 			w.WriteHeader(500)
