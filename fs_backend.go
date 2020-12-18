@@ -46,11 +46,11 @@ func NewFileSystemBackend(dirPath, gemDir string) (*FileSystemBackend, error) {
 	return &FileSystemBackend{rootDir: dirPath, gemDir: gemDir}, nil
 }
 
-func (fs *FileSystemBackend) List(reqPath string, maxDepth int) (*Item, error) {
+func (fs *FileSystemBackend) List(reqPath string, depth int) (*Item, error) {
 
 	maxAllowedDepth := 10
 
-	if maxDepth > maxAllowedDepth {
+	if depth > maxAllowedDepth {
 		errMsg := fmt.Sprintf("max-depth is greater than allowed value (%d)", maxAllowedDepth)
 		return nil, errors.New(errMsg)
 	}
@@ -64,13 +64,13 @@ func (fs *FileSystemBackend) List(reqPath string, maxDepth int) (*Item, error) {
 
 	item := DirToGemDrive(files)
 
-	if maxDepth == 1 {
+	if depth == 1 {
 		return item, nil
 	} else {
 
-		childMaxDepth := 0
-		if maxDepth > 1 {
-			childMaxDepth = maxDepth - 1
+		childDepth := 0
+		if depth > 1 {
+			childDepth = depth - 1
 		}
 
 		for _, file := range files {
@@ -82,7 +82,7 @@ func (fs *FileSystemBackend) List(reqPath string, maxDepth int) (*Item, error) {
 			childName := file.Name()
 
 			childPath := path.Join(reqPath, childName)
-			childItem, err := fs.List(childPath, childMaxDepth)
+			childItem, err := fs.List(childPath, childDepth)
 			if err != nil {
 				return nil, err
 			}
