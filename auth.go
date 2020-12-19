@@ -235,6 +235,10 @@ func (a *Auth) CanRead(token, pathStr string) bool {
 
 	acl := a.GetAcl(pathStr)
 
+	if acl.CanRead("public") {
+		return true
+	}
+
 	keyring, err := a.db.GetKeyring(token)
 	if err != nil {
 		return false
