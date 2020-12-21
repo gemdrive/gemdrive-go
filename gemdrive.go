@@ -6,9 +6,8 @@ import (
 )
 
 type Item struct {
-	Size int64 `json:"size"`
-	// TODO: json should be mod_time, or some other name
-	ModTime      string           `json:"modTime"`
+	Size         int64            `json:"size,omitempty"`
+	ModTime      string           `json:"modTime,omitempty"`
 	Children     map[string]*Item `json:"children,omitempty"`
 	IsExecutable bool             `json:"isExecutable,omitempty"`
 }

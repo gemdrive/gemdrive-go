@@ -265,8 +265,8 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		//jsonBody, err := json.Marshal(item)
-		jsonBody, err := json.MarshalIndent(item, "", "  ")
+		jsonBody, err := json.Marshal(item)
+		//jsonBody, err := json.MarshalIndent(item, "", "  ")
 		if err != nil {
 			w.WriteHeader(500)
 			w.Write([]byte(err.Error()))
