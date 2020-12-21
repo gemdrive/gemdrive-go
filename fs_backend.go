@@ -337,19 +337,26 @@ func DirToGemDrive(files []os.FileInfo) *Item {
 
 	for _, file := range files {
 		var name string
+		isExecutable := false
 		if file.IsDir() {
 			name = file.Name() + "/"
 		} else {
 			name = file.Name()
+			isExecutable = IsExecutable(file)
 		}
 
 		item.Children[name] = &Item{
-			Size:    file.Size(),
-			ModTime: file.ModTime().UTC().Format(time.RFC3339),
+			Size:         file.Size(),
+			ModTime:      file.ModTime().UTC().Format(time.RFC3339),
+			IsExecutable: isExecutable,
 		}
 	}
 
 	return item
+}
+
+func IsExecutable(f os.FileInfo) bool {
+	return f.Mode()&0111 != 0
 }
 
 // Like ioutil.ReadDir but follows symlinks

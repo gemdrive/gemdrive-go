@@ -8,8 +8,9 @@ import (
 type Item struct {
 	Size int64 `json:"size"`
 	// TODO: json should be mod_time, or some other name
-	ModTime  string           `json:"modTime"`
-	Children map[string]*Item `json:"children,omitempty"`
+	ModTime      string           `json:"modTime"`
+	Children     map[string]*Item `json:"children,omitempty"`
+	IsExecutable bool             `json:"isExecutable,omitempty"`
 }
 
 type Backend interface {
