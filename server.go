@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -64,6 +65,8 @@ func (s *Server) Run() {
 			s.handleGemDriveRequest(w, r)
 		} else {
 			switch r.Method {
+			case "HEAD":
+				s.handleHead(w, r)
 			case "GET":
 				s.serveItem(w, r)
 			case "PUT":
@@ -83,6 +86,42 @@ func (s *Server) Run() {
 	if err != nil {
 		fmt.Println(err)
 	}
+}
+
+func (s *Server) handleHead(w http.ResponseWriter, r *http.Request) {
+
+	token, _ := extractToken(r)
+
+	header := w.Header()
+
+	if !s.auth.CanRead(token, r.URL.Path) {
+		s.sendLoginPage(w, r)
+		return
+	}
+
+	parentDir := filepath.Dir(r.URL.Path) + "/"
+
+	item, err := s.backend.List(parentDir, 1)
+	if e, ok := err.(*Error); ok {
+		w.WriteHeader(e.HttpCode)
+		w.Write([]byte(e.Message))
+		return
+	} else if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	filename := filepath.Base(r.URL.Path)
+
+	child, exists := item.Children[filename]
+	if !exists {
+		w.WriteHeader(404)
+		io.WriteString(w, "Not found")
+		return
+	}
+
+	header.Set("Content-Length", fmt.Sprintf("%d", child.Size))
 }
 
 func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
@@ -112,21 +151,24 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			w.WriteHeader(400)
 			io.WriteString(w, err.Error())
+			return
 		}
 	} else {
-		offset := 0
+		var offset int64 = 0
 		truncate := true
 		overwrite := query.Get("overwrite") == "true"
-		size, err := strconv.Atoi(r.Header.Get("Content-Length"))
-		if err != nil {
+
+		if r.ContentLength < 1 {
 			w.WriteHeader(400)
-			io.WriteString(w, "Invalid content length")
+			io.WriteString(w, "Invalid read size")
+			return
 		}
 
-		err = backend.Write(r.URL.Path, r.Body, int64(offset), int64(size), overwrite, truncate)
+		err := backend.Write(r.URL.Path, r.Body, offset, r.ContentLength, overwrite, truncate)
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
+			return
 		}
 	}
 }
