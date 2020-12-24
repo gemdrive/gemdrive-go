@@ -7,6 +7,7 @@ import (
 	"github.com/GeertJohan/go.rice"
 	"io"
 	"io/ioutil"
+	"mime"
 	"net/http"
 	"path"
 	"path/filepath"
@@ -73,6 +74,10 @@ func (s *Server) Run() {
 		fmt.Println(logLine)
 
 		pathParts := strings.Split(r.URL.Path, "gemdrive/")
+
+		ext := path.Ext(reqPath)
+		contentType := mime.TypeByExtension(ext)
+		header.Set("Content-Type", contentType)
 
 		if len(pathParts) == 2 {
 			s.handleGemDriveRequest(w, r)
