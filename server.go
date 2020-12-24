@@ -417,13 +417,39 @@ func (s *Server) serveItem(w http.ResponseWriter, r *http.Request, reqPath strin
 
 	token, _ := extractToken(r)
 
-	header := w.Header()
-
 	if !s.auth.CanRead(token, reqPath) {
 		s.sendLoginPage(w, r)
 		return
 	}
 
+	isDir := strings.HasSuffix(reqPath, "/")
+
+	if isDir {
+		s.serveDir(w, r, reqPath)
+	} else {
+		s.serveFile(w, r, reqPath)
+	}
+}
+
+func (s *Server) serveDir(w http.ResponseWriter, r *http.Request, reqPath string) {
+	// If the directory contains an index.html file, serve that by default.
+	// Otherwise reading a directory is an error.
+	htmlIndexPath := reqPath + "index.html"
+	_, data, err := s.backend.Read(htmlIndexPath, 0, 0)
+	if err != nil {
+		w.WriteHeader(400)
+		io.WriteString(w, "Attempted to read directory")
+		return
+	}
+
+	_, err = io.Copy(w, data)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, reqPath string) {
+	header := w.Header()
 	header.Set("Accept-Ranges", "bytes")
 
 	rangeHeader := r.Header.Get("Range")
