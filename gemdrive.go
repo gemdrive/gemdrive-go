@@ -39,6 +39,7 @@ func (e *Error) Error() string {
 type Config struct {
 	AdminEmail string
 	Smtp       *SmtpConfig
+	DomainMap  map[string]string
 }
 
 type SmtpConfig struct {

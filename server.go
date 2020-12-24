@@ -15,14 +15,16 @@ import (
 )
 
 type Server struct {
+	config    *Config
 	port      int
 	backend   Backend
 	auth      *Auth
 	loginHtml []byte
 }
 
-func NewServer(port int, backend Backend, auth *Auth) *Server {
+func NewServer(config *Config, port int, backend Backend, auth *Auth) *Server {
 	return &Server{
+		config:  config,
 		port:    port,
 		backend: backend,
 		auth:    auth,
@@ -56,6 +58,17 @@ func (s *Server) Run() {
 			return
 		}
 
+		reqPath := r.URL.Path
+
+		hostname := r.Header.Get("X-Forwarded-Host")
+		if hostname == "" {
+			hostname = r.Host
+		}
+
+		if mapRoot, exists := s.config.DomainMap[hostname]; exists {
+			reqPath = mapRoot + reqPath
+		}
+
 		logLine := fmt.Sprintf("%s\t%s", r.Method, r.URL.Path)
 		fmt.Println(logLine)
 
@@ -68,7 +81,7 @@ func (s *Server) Run() {
 			case "HEAD":
 				s.handleHead(w, r)
 			case "GET":
-				s.serveItem(w, r)
+				s.serveItem(w, r, reqPath)
 			case "PUT":
 				// TODO: return HTTP 409 if already exists
 				s.handlePut(w, r)
@@ -400,13 +413,13 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) serveItem(w http.ResponseWriter, r *http.Request) {
+func (s *Server) serveItem(w http.ResponseWriter, r *http.Request, reqPath string) {
 
 	token, _ := extractToken(r)
 
 	header := w.Header()
 
-	if !s.auth.CanRead(token, r.URL.Path) {
+	if !s.auth.CanRead(token, reqPath) {
 		s.sendLoginPage(w, r)
 		return
 	}
@@ -436,7 +449,7 @@ func (s *Server) serveItem(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	item, data, err := s.backend.Read(r.URL.Path, offset, copyLength)
+	item, data, err := s.backend.Read(reqPath, offset, copyLength)
 	if readErr, ok := err.(*Error); ok {
 		w.WriteHeader(readErr.HttpCode)
 		w.Write([]byte(readErr.Message))
