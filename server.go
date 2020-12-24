@@ -70,31 +70,31 @@ func (s *Server) Run() {
 			reqPath = mapRoot + reqPath
 		}
 
-		logLine := fmt.Sprintf("%s\t%s", r.Method, r.URL.Path)
+		logLine := fmt.Sprintf("%s\t%s\t%s", r.Method, hostname, reqPath)
 		fmt.Println(logLine)
 
-		pathParts := strings.Split(r.URL.Path, "gemdrive/")
+		pathParts := strings.Split(reqPath, "gemdrive/")
 
 		ext := path.Ext(reqPath)
 		contentType := mime.TypeByExtension(ext)
 		header.Set("Content-Type", contentType)
 
 		if len(pathParts) == 2 {
-			s.handleGemDriveRequest(w, r)
+			s.handleGemDriveRequest(w, r, reqPath)
 		} else {
 			switch r.Method {
 			case "HEAD":
-				s.handleHead(w, r)
+				s.handleHead(w, r, reqPath)
 			case "GET":
 				s.serveItem(w, r, reqPath)
 			case "PUT":
 				// TODO: return HTTP 409 if already exists
-				s.handlePut(w, r)
+				s.handlePut(w, r, reqPath)
 			case "PATCH":
 				// TODO: return HTTP 409 if already exists
-				s.handlePatch(w, r)
+				s.handlePatch(w, r, reqPath)
 			case "DELETE":
-				s.handleDelete(w, r)
+				s.handleDelete(w, r, reqPath)
 			}
 		}
 	})
@@ -106,18 +106,18 @@ func (s *Server) Run() {
 	}
 }
 
-func (s *Server) handleHead(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleHead(w http.ResponseWriter, r *http.Request, reqPath string) {
 
 	token, _ := extractToken(r)
 
 	header := w.Header()
 
-	if !s.auth.CanRead(token, r.URL.Path) {
+	if !s.auth.CanRead(token, reqPath) {
 		s.sendLoginPage(w, r)
 		return
 	}
 
-	parentDir := filepath.Dir(r.URL.Path) + "/"
+	parentDir := filepath.Dir(reqPath) + "/"
 
 	item, err := s.backend.List(parentDir, 1)
 	if e, ok := err.(*Error); ok {
@@ -130,7 +130,7 @@ func (s *Server) handleHead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filename := filepath.Base(r.URL.Path)
+	filename := filepath.Base(reqPath)
 
 	child, exists := item.Children[filename]
 	if !exists {
@@ -142,13 +142,13 @@ func (s *Server) handleHead(w http.ResponseWriter, r *http.Request) {
 	header.Set("Content-Length", fmt.Sprintf("%d", child.Size))
 }
 
-func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handlePut(w http.ResponseWriter, r *http.Request, reqPath string) {
 
 	token, _ := extractToken(r)
 
 	query := r.URL.Query()
 
-	if !s.auth.CanWrite(token, r.URL.Path) {
+	if !s.auth.CanWrite(token, reqPath) {
 		s.sendLoginPage(w, r)
 		return
 	}
@@ -161,11 +161,11 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isDir := strings.HasSuffix(r.URL.Path, "/")
+	isDir := strings.HasSuffix(reqPath, "/")
 
 	if isDir {
 		recursive := query.Get("recursive") == "true"
-		err := backend.MakeDir(r.URL.Path, recursive)
+		err := backend.MakeDir(reqPath, recursive)
 		if err != nil {
 			w.WriteHeader(400)
 			io.WriteString(w, err.Error())
@@ -176,13 +176,14 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
 		truncate := true
 		overwrite := query.Get("overwrite") == "true"
 
+		// TODO: consider allowing 0-length files
 		if r.ContentLength < 1 {
 			w.WriteHeader(400)
-			io.WriteString(w, "Invalid read size")
+			io.WriteString(w, "Invalid write size")
 			return
 		}
 
-		err := backend.Write(r.URL.Path, r.Body, offset, r.ContentLength, overwrite, truncate)
+		err := backend.Write(reqPath, r.Body, offset, r.ContentLength, overwrite, truncate)
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
@@ -191,13 +192,13 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, reqPath string) {
 
 	token, _ := extractToken(r)
 
 	query := r.URL.Query()
 
-	if !s.auth.CanWrite(token, r.URL.Path) {
+	if !s.auth.CanWrite(token, reqPath) {
 		s.sendLoginPage(w, r)
 		return
 	}
@@ -236,7 +237,7 @@ func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = backend.Write(r.URL.Path, r.Body, int64(offset), int64(size), overwrite, truncate)
+	err = backend.Write(reqPath, r.Body, int64(offset), int64(size), overwrite, truncate)
 	if err != nil {
 		w.WriteHeader(500)
 		io.WriteString(w, err.Error())
@@ -244,12 +245,12 @@ func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, reqPath string) {
 	token, _ := extractToken(r)
 
 	query := r.URL.Query()
 
-	if !s.auth.CanWrite(token, r.URL.Path) {
+	if !s.auth.CanWrite(token, reqPath) {
 		s.sendLoginPage(w, r)
 		return
 	}
@@ -263,7 +264,7 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	recursive := query.Get("recursive") == "true"
-	err := backend.Delete(r.URL.Path, recursive)
+	err := backend.Delete(reqPath, recursive)
 	if err != nil {
 		w.WriteHeader(500)
 		io.WriteString(w, err.Error())
@@ -279,11 +280,11 @@ func (s *Server) sendLoginPage(w http.ResponseWriter, r *http.Request) {
 	w.Write(s.loginHtml)
 }
 
-func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, reqPath string) {
 
 	token, _ := extractToken(r)
 
-	pathParts := strings.Split(r.URL.Path, "gemdrive/")
+	pathParts := strings.Split(reqPath, "gemdrive/")
 
 	gemPath := pathParts[0]
 	gemReq := pathParts[1]
