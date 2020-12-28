@@ -455,8 +455,16 @@ func (s *Server) serveDir(w http.ResponseWriter, r *http.Request, reqPath string
 }
 
 func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, reqPath string) {
+
+	query := r.URL.Query()
+
 	header := w.Header()
 	header.Set("Accept-Ranges", "bytes")
+
+	download := query.Get("download") == "true"
+	if download {
+		header.Set("Content-Disposition", "attachment")
+	}
 
 	rangeHeader := r.Header.Get("Range")
 
