@@ -329,9 +329,9 @@ func permCanOwn(perm string) bool {
 }
 
 func genCode() (string, error) {
-	const chars string = "0123456789abcdefghijkmnpqrstuvwxyz"
+	const chars string = "0123456789"
 	id := ""
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 6; i++ {
 		randIndex, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
 		if err != nil {
 			return "", err
