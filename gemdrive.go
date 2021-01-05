@@ -43,9 +43,9 @@ type Config struct {
 }
 
 type SmtpConfig struct {
-	Server   string
-	Username string
-	Password string
-	Port     int
-	Sender   string
+	Server   string `json:"server,omitempty"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+	Port     int    `json:"port,omitempty"`
+	Sender   string `json:"sender,omitempty"`
 }
