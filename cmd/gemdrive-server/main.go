@@ -20,6 +20,7 @@ func main() {
 	flag.Var(&dirs, "dir", "Directory to add")
 	configPath := flag.String("config", "", "Config path")
 	configDir := flag.String("config-dir", filepath.Join(userDirs.GetConfigDir(), "gemdrive"), "Config directory")
+	dataDir := flag.String("database-dir", filepath.Join(userDirs.GetDataDir(), "gemdrive"), "Database directory")
 	cacheDir := flag.String("cache-dir", filepath.Join(userDirs.GetCacheDir(), "gemdrive"), "Cache directory")
 	rclone := flag.String("rclone", "", "Enable rclone proxy")
 	flag.Parse()
@@ -57,7 +58,7 @@ func main() {
 		multiBackend.AddBackend(*rclone, rcloneBackend)
 	}
 
-	auth, err := gemdrive.NewAuth(*cacheDir, config)
+	auth, err := gemdrive.NewAuth(*dataDir, config)
 
 	server := gemdrive.NewServer(config, *port, multiBackend, auth)
 	server.Run()

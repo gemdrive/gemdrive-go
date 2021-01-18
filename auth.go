@@ -17,7 +17,7 @@ import (
 )
 
 type Auth struct {
-	cacheDir            string
+	dataDir             string
 	db                  *Database
 	config              *Config
 	pendingAuthRequests map[string]*AuthRequest
@@ -129,9 +129,9 @@ func (db *Database) persist() {
 	saveJson(db, db.path)
 }
 
-func NewAuth(cacheDir string, config *Config) (*Auth, error) {
+func NewAuth(dataDir string, config *Config) (*Auth, error) {
 
-	rootAclPath := path.Join(cacheDir, "gemdrive", "acl.json")
+	rootAclPath := path.Join(dataDir, "gemdrive", "acl.json")
 
 	err := os.MkdirAll(path.Dir(rootAclPath), 0755)
 	if err != nil {
@@ -153,12 +153,12 @@ func NewAuth(cacheDir string, config *Config) (*Auth, error) {
 		}
 	}
 
-	db := NewDatabase(cacheDir)
+	db := NewDatabase(dataDir)
 
 	pendingAuthRequests := make(map[string]*AuthRequest)
 	mut := &sync.Mutex{}
 
-	return &Auth{cacheDir, db, config, pendingAuthRequests, mut}, nil
+	return &Auth{dataDir, db, config, pendingAuthRequests, mut}, nil
 }
 
 func (a *Auth) Authorize(key Key) (string, error) {
@@ -277,7 +277,7 @@ func (a *Auth) GetAcl(pathStr string) Acl {
 
 	for i := len(parts) - 1; i > 0; i-- {
 		p := strings.Join(parts[:i], "/")
-		aclPath := path.Join(a.cacheDir, p, "gemdrive", "acl.json")
+		aclPath := path.Join(a.dataDir, p, "gemdrive", "acl.json")
 
 		acl, err := readAcl(aclPath)
 		if err == nil {
