@@ -37,9 +37,9 @@ func (e *Error) Error() string {
 }
 
 type Config struct {
-	AdminEmail string
-	Smtp       *SmtpConfig
-	DomainMap  map[string]string
+	AdminEmail string            `json:"admin_email,omitempty"`
+	Smtp       *SmtpConfig       `json:"smtp,omitempty"`
+	DomainMap  map[string]string `json:"domain_map,omitempty"`
 }
 
 type SmtpConfig struct {
