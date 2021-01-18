@@ -9,18 +9,27 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 )
 
 func main() {
+	userDirs := gemdrive.NewUserDirs()
+
 	port := flag.Int("port", 3838, "Port")
 	var dirs arrayFlags
 	flag.Var(&dirs, "dir", "Directory to add")
-	gemCacheDir := flag.String("meta-dir", "./gemdrive", "Gem directory")
+	configPath := flag.String("config", "", "Config path")
+	configDir := flag.String("config-dir", filepath.Join(userDirs.GetConfigDir(), "gemdrive"), "Config directory")
+	cacheDir := flag.String("cache-dir", filepath.Join(userDirs.GetCacheDir(), "gemdrive"), "Cache directory")
 	rclone := flag.String("rclone", "", "Enable rclone proxy")
 	flag.Parse()
 
+	if *configPath == "" {
+		*configPath = filepath.Join(*configDir, "gemdrive_config.json")
+	}
+
 	var config *gemdrive.Config
-	configBytes, err := ioutil.ReadFile("gemdrive_config.json")
+	configBytes, err := ioutil.ReadFile(*configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -34,8 +43,8 @@ func main() {
 
 	for _, dir := range dirs {
 		dirName := path.Base(dir)
-		gemDir := path.Join(*gemCacheDir, dirName)
-		fsBackend, err := gemdrive.NewFileSystemBackend(dir, gemDir)
+		subCacheDir := path.Join(*cacheDir, dirName)
+		fsBackend, err := gemdrive.NewFileSystemBackend(dir, subCacheDir)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -53,7 +62,7 @@ func main() {
 	//gemDir := path.Join(*gemCacheDir, dirName)
 	//fmt.Println(dir, gemDir)
 	//fsBackend, err := gemdrive.NewFileSystemBackend(dir, gemDir)
-	auth, err := gemdrive.NewAuth(*gemCacheDir, config)
+	auth, err := gemdrive.NewAuth(*cacheDir, config)
 
 	server := gemdrive.NewServer(config, *port, multiBackend, auth)
 	//server := NewServer(*port, fsBackend, auth)
