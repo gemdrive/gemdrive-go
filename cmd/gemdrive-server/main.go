@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	gemdrive "github.com/gemdrive/gemdrive-go"
 	"io/ioutil"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
+
+	gemdrive "github.com/gemdrive/gemdrive-go"
 )
 
 func main() {
@@ -42,14 +42,14 @@ func main() {
 	multiBackend := gemdrive.NewMultiBackend()
 
 	for _, dir := range dirs {
-		dirName := path.Base(dir)
-		subCacheDir := path.Join(*cacheDir, dirName)
+		dirName := filepath.Base(dir)
+		subCacheDir := filepath.Join(*cacheDir, dirName)
 		fsBackend, err := gemdrive.NewFileSystemBackend(dir, subCacheDir)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		multiBackend.AddBackend(path.Base(dir), fsBackend)
+		multiBackend.AddBackend(filepath.Base(dir), fsBackend)
 	}
 
 	if *rclone != "" {
@@ -57,15 +57,9 @@ func main() {
 		multiBackend.AddBackend(*rclone, rcloneBackend)
 	}
 
-	//dir := dirs[0]
-	//dirName := path.Base(dir)
-	//gemDir := path.Join(*gemCacheDir, dirName)
-	//fmt.Println(dir, gemDir)
-	//fsBackend, err := gemdrive.NewFileSystemBackend(dir, gemDir)
 	auth, err := gemdrive.NewAuth(*cacheDir, config)
 
 	server := gemdrive.NewServer(config, *port, multiBackend, auth)
-	//server := NewServer(*port, fsBackend, auth)
 	server.Run()
 }
 
