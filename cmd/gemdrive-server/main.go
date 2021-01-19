@@ -3,10 +3,8 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
 	"path/filepath"
 
 	gemdrive "github.com/gemdrive/gemdrive-go"
@@ -15,52 +13,59 @@ import (
 func main() {
 	userDirs := gemdrive.NewUserDirs()
 
-	port := flag.Int("port", 3838, "Port")
+	port := flag.Int("port", 0, "Port")
 	var dirs arrayFlags
 	flag.Var(&dirs, "dir", "Directory to add")
 	configPath := flag.String("config", "", "Config path")
 	configDir := flag.String("config-dir", filepath.Join(userDirs.GetConfigDir(), "gemdrive"), "Config directory")
-	dataDir := flag.String("database-dir", filepath.Join(userDirs.GetDataDir(), "gemdrive"), "Database directory")
-	cacheDir := flag.String("cache-dir", filepath.Join(userDirs.GetCacheDir(), "gemdrive"), "Cache directory")
+	dataDir := flag.String("database-dir", "", "Database directory")
+	cacheDir := flag.String("cache-dir", "", "Cache directory")
 	rclone := flag.String("rclone", "", "Enable rclone proxy")
 	flag.Parse()
+
+	config := &gemdrive.Config{
+		Port: 3838,
+		Dirs: []string{},
+	}
 
 	if *configPath == "" {
 		*configPath = filepath.Join(*configDir, "gemdrive_config.json")
 	}
 
-	var config *gemdrive.Config
 	configBytes, err := ioutil.ReadFile(*configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	err = json.Unmarshal(configBytes, &config)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	multiBackend := gemdrive.NewMultiBackend()
+	if *port != 0 {
+		config.Port = *port
+	}
 
-	for _, dir := range dirs {
-		dirName := filepath.Base(dir)
-		subCacheDir := filepath.Join(*cacheDir, dirName)
-		fsBackend, err := gemdrive.NewFileSystemBackend(dir, subCacheDir)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		multiBackend.AddBackend(filepath.Base(dir), fsBackend)
+	if *dataDir != "" {
+		config.DataDir = filepath.Join(userDirs.GetDataDir(), "gemdrive")
+	}
+
+	if *cacheDir != "" {
+		config.CacheDir = filepath.Join(userDirs.GetCacheDir(), "gemdrive")
 	}
 
 	if *rclone != "" {
-		rcloneBackend := gemdrive.NewRcloneBackend()
-		multiBackend.AddBackend(*rclone, rcloneBackend)
+		config.RcloneDir = *rclone
 	}
 
-	auth, err := gemdrive.NewAuth(*dataDir, config)
+	for _, dir := range dirs {
+		config.Dirs = append(config.Dirs, dir)
+	}
 
-	server := gemdrive.NewServer(config, *port, multiBackend, auth)
+	server, err := gemdrive.NewServer(config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	server.Run()
 }
 

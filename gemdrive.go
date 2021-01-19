@@ -37,9 +37,14 @@ func (e *Error) Error() string {
 }
 
 type Config struct {
-	AdminEmail string            `json:"admin_email,omitempty"`
+	Port       int               `json:"port,omitempty"`
+	Dirs       []string          `json:"dirs,omitempty"`
+	AdminEmail string            `json:"adminEmail,omitempty"`
+	DataDir    string            `json:"dataDir,omitempty"`
+	CacheDir   string            `json:"cacheDir,omitempty"`
+	RcloneDir  string            `json:"rcloneDir,omitempty"`
 	Smtp       *SmtpConfig       `json:"smtp,omitempty"`
-	DomainMap  map[string]string `json:"domain_map,omitempty"`
+	DomainMap  map[string]string `json:"domainMap,omitempty"`
 }
 
 type SmtpConfig struct {

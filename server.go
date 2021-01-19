@@ -17,19 +17,40 @@ import (
 
 type Server struct {
 	config    *Config
-	port      int
 	backend   Backend
 	auth      *Auth
 	loginHtml []byte
 }
 
-func NewServer(config *Config, port int, backend Backend, auth *Auth) *Server {
+func NewServer(config *Config) (*Server, error) {
+
+	multiBackend := NewMultiBackend()
+
+	for _, dir := range config.Dirs {
+		dirName := filepath.Base(dir)
+		subCacheDir := filepath.Join(config.CacheDir, dirName)
+		fsBackend, err := NewFileSystemBackend(dir, subCacheDir)
+		if err != nil {
+			return nil, err
+		}
+		multiBackend.AddBackend(filepath.Base(dir), fsBackend)
+	}
+
+	if config.RcloneDir != "" {
+		rcloneBackend := NewRcloneBackend()
+		multiBackend.AddBackend(config.RcloneDir, rcloneBackend)
+	}
+
+	auth, err := NewAuth(config.DataDir, config)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Server{
 		config:  config,
-		port:    port,
-		backend: backend,
+		backend: multiBackend,
 		auth:    auth,
-	}
+	}, nil
 }
 
 func (s *Server) Run() {
@@ -100,7 +121,7 @@ func (s *Server) Run() {
 	})
 
 	fmt.Println("Running")
-	err := http.ListenAndServe(fmt.Sprintf(":%d", s.port), nil)
+	err := http.ListenAndServe(fmt.Sprintf(":%d", s.config.Port), nil)
 	if err != nil {
 		fmt.Println(err)
 	}
