@@ -11,7 +11,10 @@ import (
 )
 
 func main() {
-	userDirs := gemdrive.NewUserDirs()
+	userDirs, err := gemdrive.NewUserDirs()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	port := flag.Int("port", 0, "Port")
 	var dirs arrayFlags
