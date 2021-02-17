@@ -53,7 +53,7 @@ func NewServer(config *Config) (*Server, error) {
 	}, nil
 }
 
-func (s *Server) Run() {
+func (s *Server) Run() error {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
@@ -120,11 +120,12 @@ func (s *Server) Run() {
 		}
 	})
 
-	fmt.Println("Running")
 	err := http.ListenAndServe(fmt.Sprintf(":%d", s.config.Port), nil)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
+
+	return nil
 }
 
 func (s *Server) handleHead(w http.ResponseWriter, r *http.Request, reqPath string) {
@@ -403,6 +404,7 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 		cookie := &http.Cookie{
 			Name:  "access_token",
 			Value: token,
+			// TODO: enable Secure
 			//Secure:   true,
 			HttpOnly: true,
 			MaxAge:   86400 * 365,
