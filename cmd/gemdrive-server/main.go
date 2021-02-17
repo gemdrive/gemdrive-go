@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"io/ioutil"
@@ -69,7 +70,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	server.Run()
+	server.Run(context.Background())
 }
 
 // Taken from https://stackoverflow.com/a/28323276/943814

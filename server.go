@@ -1,6 +1,7 @@
 package gemdrive
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -53,9 +54,11 @@ func NewServer(config *Config) (*Server, error) {
 	}, nil
 }
 
-func (s *Server) Run() error {
+func (s *Server) Run(ctx context.Context) error {
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux := &http.ServeMux{}
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
 		box, err := rice.FindBox("files")
 		if err != nil {
@@ -120,8 +123,23 @@ func (s *Server) Run() error {
 		}
 	})
 
-	err := http.ListenAndServe(fmt.Sprintf(":%d", s.config.Port), nil)
-	if err != nil {
+	httpServer := &http.Server{
+		Addr:    fmt.Sprintf(":%d", s.config.Port),
+		Handler: mux,
+	}
+
+	serverDone := make(chan error)
+
+	go func() {
+		err := httpServer.ListenAndServe()
+		serverDone <- err
+	}()
+
+	select {
+	case err := <-serverDone:
+		return err
+	case <-ctx.Done():
+		err := httpServer.Shutdown(ctx)
 		return err
 	}
 
