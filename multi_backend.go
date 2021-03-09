@@ -4,33 +4,60 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"sync"
 )
 
 type MultiBackend struct {
 	backends map[string]Backend
+	mut      *sync.Mutex
 }
 
 func NewMultiBackend() *MultiBackend {
-	return &MultiBackend{backends: make(map[string]Backend)}
+	return &MultiBackend{
+		backends: make(map[string]Backend),
+		mut:      &sync.Mutex{},
+	}
 }
 
 func (b *MultiBackend) AddBackend(name string, backend Backend) error {
+
+	b.mut.Lock()
+	defer b.mut.Unlock()
+
 	b.backends[name] = backend
 	return nil
 }
 
+func (b *MultiBackend) RemoveBackend(name string) error {
+
+	b.mut.Lock()
+	defer b.mut.Unlock()
+
+	delete(b.backends, name)
+
+	return nil
+}
+
 func (b *MultiBackend) List(reqPath string, depth int) (*Item, error) {
+
+	b.mut.Lock()
+	backends := make(map[string]Backend)
+	for k, v := range b.backends {
+		backends[k] = v
+	}
+	b.mut.Unlock()
+
 	if reqPath == "/" {
 		rootItem := &Item{
 			Children: make(map[string]*Item),
 		}
 
-		for name := range b.backends {
+		for name := range backends {
 			rootItem.Children[name+"/"] = &Item{}
 		}
 
 		if depth == 0 || depth > 1 {
-			for name, backend := range b.backends {
+			for name, backend := range backends {
 				child, err := backend.List("/", depth-1)
 				if err != nil {
 					return nil, err
@@ -51,7 +78,7 @@ func (b *MultiBackend) List(reqPath string, depth int) (*Item, error) {
 		}
 	}
 
-	return b.backends[backendName].List(subPath, depth)
+	return backends[backendName].List(subPath, depth)
 }
 
 func (b *MultiBackend) Read(reqPath string, offset, length int64) (*Item, io.ReadCloser, error) {
@@ -64,7 +91,11 @@ func (b *MultiBackend) Read(reqPath string, offset, length int64) (*Item, io.Rea
 		}
 	}
 
-	return b.backends[backendName].Read(subPath, offset, length)
+	b.mut.Lock()
+	backend := b.backends[backendName]
+	b.mut.Unlock()
+
+	return backend.Read(subPath, offset, length)
 }
 
 func (b *MultiBackend) MakeDir(reqPath string, recursive bool) error {
@@ -76,7 +107,11 @@ func (b *MultiBackend) MakeDir(reqPath string, recursive bool) error {
 		}
 	}
 
-	if backend, ok := b.backends[backendName].(WritableBackend); ok {
+	b.mut.Lock()
+	backend := b.backends[backendName]
+	b.mut.Unlock()
+
+	if backend, ok := backend.(WritableBackend); ok {
 		return backend.MakeDir(subPath, recursive)
 	}
 
@@ -93,7 +128,11 @@ func (b *MultiBackend) Write(reqPath string, data io.Reader, offset, length int6
 		}
 	}
 
-	if backend, ok := b.backends[backendName].(WritableBackend); ok {
+	b.mut.Lock()
+	backend := b.backends[backendName]
+	b.mut.Unlock()
+
+	if backend, ok := backend.(WritableBackend); ok {
 		return backend.Write(subPath, data, offset, length, overwrite, truncate)
 	}
 
@@ -109,7 +148,11 @@ func (b *MultiBackend) Delete(reqPath string, recursive bool) error {
 		}
 	}
 
-	if backend, ok := b.backends[backendName].(WritableBackend); ok {
+	b.mut.Lock()
+	backend := b.backends[backendName]
+	b.mut.Unlock()
+
+	if backend, ok := backend.(WritableBackend); ok {
 		return backend.Delete(subPath, recursive)
 	}
 
@@ -126,7 +169,11 @@ func (b *MultiBackend) GetImage(reqPath string, size int) (io.Reader, int64, err
 		}
 	}
 
-	if backend, ok := b.backends[backendName].(ImageServer); ok {
+	b.mut.Lock()
+	backend := b.backends[backendName]
+	b.mut.Unlock()
+
+	if backend, ok := backend.(ImageServer); ok {
 		return backend.GetImage(subPath, size)
 	}
 
@@ -142,7 +189,11 @@ func (b *MultiBackend) parsePath(reqPath string) (string, string, error) {
 
 	backendName := parts[1]
 
-	if _, exists := b.backends[backendName]; !exists {
+	b.mut.Lock()
+	_, exists := b.backends[backendName]
+	b.mut.Unlock()
+
+	if !exists {
 		return "", "", errors.New("Backend doesn't exist")
 	}
 

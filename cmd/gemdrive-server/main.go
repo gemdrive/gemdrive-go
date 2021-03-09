@@ -8,6 +8,7 @@ import (
 	"log"
 	"path/filepath"
 
+	"github.com/anderspitman/treemess-go"
 	gemdrive "github.com/gemdrive/gemdrive-go"
 )
 
@@ -65,7 +66,8 @@ func main() {
 		config.Dirs = append(config.Dirs, dir)
 	}
 
-	server, err := gemdrive.NewServer(config)
+	pubsub := treemess.NewPubSub()
+	server, err := gemdrive.NewServer(config, pubsub)
 	if err != nil {
 		log.Fatal(err)
 	}

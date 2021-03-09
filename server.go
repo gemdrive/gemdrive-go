@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/anderspitman/treemess-go"
 )
 
 type Server struct {
@@ -23,7 +25,7 @@ type Server struct {
 	loginHtml []byte
 }
 
-func NewServer(config *Config) (*Server, error) {
+func NewServer(config *Config, pubsub *treemess.PubSub) (*Server, error) {
 
 	multiBackend := NewMultiBackend()
 
@@ -46,6 +48,21 @@ func NewServer(config *Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	pubsub.Sub("add-directory", func(msg interface{}) {
+		dir := msg.(string)
+		dirName := filepath.Base(dir)
+		subCacheDir := filepath.Join(config.CacheDir, dirName)
+		fsBackend, err := NewFileSystemBackend(dir, subCacheDir)
+		if err != nil {
+			return
+		}
+		multiBackend.AddBackend(filepath.Base(dir), fsBackend)
+
+		pubsub.Pub("directory-added", treemess.Message{
+			Data: dir,
+		})
+	})
 
 	return &Server{
 		config:  config,
