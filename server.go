@@ -50,7 +50,8 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 	}
 
 	tmess.Listen(func(channel string, msg interface{}) {
-		if channel == "add-directory" {
+		switch channel {
+		case "add-directory":
 			dir := msg.(string)
 			dirName := filepath.Base(dir)
 			subCacheDir := filepath.Join(config.CacheDir, dirName)
@@ -61,6 +62,10 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 			multiBackend.AddBackend(filepath.Base(dir), fsBackend)
 
 			tmess.Send("directory-added", dir)
+		case "remove-directory":
+			dir := msg.(string)
+			multiBackend.RemoveBackend(filepath.Base(dir))
+			tmess.Send("directory-removed", dir)
 		}
 	})
 
