@@ -25,7 +25,7 @@ type Server struct {
 	loginHtml []byte
 }
 
-func NewServer(config *Config, pubsub *treemess.PubSub) (*Server, error) {
+func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 
 	multiBackend := NewMultiBackend()
 
@@ -49,19 +49,19 @@ func NewServer(config *Config, pubsub *treemess.PubSub) (*Server, error) {
 		return nil, err
 	}
 
-	pubsub.Sub("add-directory", func(msg interface{}) {
-		dir := msg.(string)
-		dirName := filepath.Base(dir)
-		subCacheDir := filepath.Join(config.CacheDir, dirName)
-		fsBackend, err := NewFileSystemBackend(dir, subCacheDir)
-		if err != nil {
-			return
-		}
-		multiBackend.AddBackend(filepath.Base(dir), fsBackend)
+	tmess.Listen(func(channel string, msg interface{}) {
+		if channel == "add-directory" {
+			dir := msg.(string)
+			dirName := filepath.Base(dir)
+			subCacheDir := filepath.Join(config.CacheDir, dirName)
+			fsBackend, err := NewFileSystemBackend(dir, subCacheDir)
+			if err != nil {
+				return
+			}
+			multiBackend.AddBackend(filepath.Base(dir), fsBackend)
 
-		pubsub.Pub("directory-added", treemess.Message{
-			Data: dir,
-		})
+			tmess.Send("directory-added", dir)
+		}
 	})
 
 	return &Server{

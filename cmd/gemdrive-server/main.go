@@ -66,8 +66,8 @@ func main() {
 		config.Dirs = append(config.Dirs, dir)
 	}
 
-	pubsub := treemess.NewPubSub()
-	server, err := gemdrive.NewServer(config, pubsub)
+	tmess := treemess.NewTreeMess()
+	server, err := gemdrive.NewServer(config, tmess)
 	if err != nil {
 		log.Fatal(err)
 	}
