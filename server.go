@@ -49,31 +49,26 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 		return nil, err
 	}
 
-	ch := make(chan treemess.Message)
-	tmess.Listen(ch)
-
-	go func() {
-		for msg := range ch {
-			fmt.Println("gd tmess listen", msg.Channel, msg.Data)
-			switch msg.Channel {
-			case "add-directory":
-				dir := msg.Data.(string)
-				dirName := filepath.Base(dir)
-				subCacheDir := filepath.Join(config.CacheDir, dirName)
-				fsBackend, err := NewFileSystemBackend(dir, subCacheDir)
-				if err != nil {
-					return
-				}
-				multiBackend.AddBackend(filepath.Base(dir), fsBackend)
-
-				tmess.Send("directory-added", dir)
-			case "remove-directory":
-				dir := msg.Data.(string)
-				multiBackend.RemoveBackend(filepath.Base(dir))
-				tmess.Send("directory-removed", dir)
+	tmess.ListenFunc(func(msg treemess.Message) {
+		fmt.Println("gd tmess listen", msg.Channel, msg.Data)
+		switch msg.Channel {
+		case "add-directory":
+			dir := msg.Data.(string)
+			dirName := filepath.Base(dir)
+			subCacheDir := filepath.Join(config.CacheDir, dirName)
+			fsBackend, err := NewFileSystemBackend(dir, subCacheDir)
+			if err != nil {
+				return
 			}
+			multiBackend.AddBackend(filepath.Base(dir), fsBackend)
+
+			tmess.Send("directory-added", dir)
+		case "remove-directory":
+			dir := msg.Data.(string)
+			multiBackend.RemoveBackend(filepath.Base(dir))
+			tmess.Send("directory-removed", dir)
 		}
-	}()
+	})
 
 	return &Server{
 		config:  config,
