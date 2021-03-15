@@ -1,9 +1,9 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"path/filepath"
@@ -67,12 +67,21 @@ func main() {
 	}
 
 	tmess := treemess.NewTreeMess()
-	server, err := gemdrive.NewServer(config, tmess)
+	gdTmess := tmess.Branch()
+
+	_, err = gemdrive.NewServer(config, gdTmess)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	server.Run(context.Background())
+	ch := make(chan treemess.Message)
+	tmess.Listen(ch)
+
+	tmess.Send("start", nil)
+
+	for msg := range ch {
+		fmt.Println(msg)
+	}
 }
 
 // Taken from https://stackoverflow.com/a/28323276/943814
