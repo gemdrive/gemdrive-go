@@ -19,11 +19,14 @@ import (
 )
 
 type Server struct {
-	tmess     *treemess.TreeMess
-	config    *Config
-	backend   Backend
-	auth      *Auth
-	loginHtml []byte
+	tmess      *treemess.TreeMess
+	state      string
+	runCtx     context.Context
+	httpServer *http.Server
+	config     *Config
+	backend    Backend
+	auth       *Auth
+	loginHtml  []byte
 }
 
 func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
@@ -50,9 +53,25 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 		return nil, err
 	}
 
+	server := &Server{
+		tmess:   tmess,
+		state:   "stopped",
+		config:  config,
+		backend: multiBackend,
+		auth:    auth,
+	}
+
 	tmess.ListenFunc(func(msg treemess.Message) {
-		fmt.Println("gd tmess listen", msg.Channel, msg.Data)
+		//fmt.Println("gd tmess listen", msg.Channel, msg.Data)
 		switch msg.Channel {
+		case "start":
+			server.start()
+		case "stop":
+			server.stop()
+		case "server-stopped":
+			server.runCtx = nil
+			server.state = "stopped"
+			tmess.Send("state-updated", server.state)
 		case "add-directory":
 			dir := msg.Data.(string)
 			dirName := filepath.Base(dir)
@@ -71,15 +90,16 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 		}
 	})
 
-	return &Server{
-		tmess:   tmess,
-		config:  config,
-		backend: multiBackend,
-		auth:    auth,
-	}, nil
+	return server, nil
 }
 
-func (s *Server) Run(ctx context.Context) error {
+func (s *Server) start() {
+
+	running := s.runCtx != nil
+	if running {
+		s.tmess.Send("error", "already-running")
+		return
+	}
 
 	mux := &http.ServeMux{}
 
@@ -148,27 +168,37 @@ func (s *Server) Run(ctx context.Context) error {
 		}
 	})
 
-	httpServer := &http.Server{
+	s.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", s.config.Port),
 		Handler: mux,
 	}
 
-	serverDone := make(chan error)
-
 	go func() {
-		err := httpServer.ListenAndServe()
-		serverDone <- err
+		err := s.httpServer.ListenAndServe()
+		if err != nil {
+			s.tmess.Send("error", err.Error())
+		}
+
+		s.tmess.Send("server-stopped", nil)
 	}()
 
-	select {
-	case err := <-serverDone:
-		return err
-	case <-ctx.Done():
-		err := httpServer.Shutdown(ctx)
-		return err
+	s.runCtx = context.Background()
+	s.state = "running"
+}
+
+func (s *Server) stop() {
+
+	running := s.runCtx != nil
+
+	if !running {
+		s.tmess.Send("error", "not-running")
+		return
 	}
 
-	return nil
+	err := s.httpServer.Shutdown(s.runCtx)
+	if err != nil {
+		s.tmess.Send("error", err.Error())
+	}
 }
 
 func (s *Server) handleHead(w http.ResponseWriter, r *http.Request, reqPath string) {
