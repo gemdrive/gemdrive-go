@@ -14,17 +14,26 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/anderspitman/treemess-go"
 )
 
 type Auth struct {
+	tmess               *treemess.TreeMess
 	dataDir             string
 	db                  *Database
 	config              *Config
-	pendingAuthRequests map[string]*AuthRequest
+	pendingAuthRequests map[string]*PendingAuthRequest
 	mut                 *sync.Mutex
 }
 
 type AuthRequest struct {
+	Type  string `json:"type"`
+	Email string `json:"email"`
+	Key   Key    `json:"key"`
+}
+
+type PendingAuthRequest struct {
 	code    string
 	keyring []*Key
 }
@@ -129,7 +138,7 @@ func (db *Database) persist() {
 	saveJson(db, db.path)
 }
 
-func NewAuth(dataDir string, config *Config) (*Auth, error) {
+func NewAuth(tmess *treemess.TreeMess, dataDir string, config *Config) (*Auth, error) {
 
 	rootAclPath := path.Join(dataDir, "gemdrive", "acl.json")
 
@@ -155,13 +164,45 @@ func NewAuth(dataDir string, config *Config) (*Auth, error) {
 
 	db := NewDatabase(dataDir)
 
-	pendingAuthRequests := make(map[string]*AuthRequest)
+	pendingAuthRequests := make(map[string]*PendingAuthRequest)
 	mut := &sync.Mutex{}
 
-	return &Auth{dataDir, db, config, pendingAuthRequests, mut}, nil
+	return &Auth{tmess, dataDir, db, config, pendingAuthRequests, mut}, nil
 }
 
-func (a *Auth) Authorize(key Key) (string, error) {
+func (a *Auth) AuthorizeDirectCode(key Key) (string, error) {
+	requestId, err := genRandomKey()
+	if err != nil {
+		return "", err
+	}
+
+	code, err := genCode()
+	if err != nil {
+		return "", err
+	}
+
+	a.mut.Lock()
+	a.pendingAuthRequests[requestId] = &PendingAuthRequest{
+		code:    code,
+		keyring: []*Key{&key},
+	}
+	a.mut.Unlock()
+
+	// Requests expire after a certain time
+	go func() {
+		time.Sleep(60 * time.Second)
+		a.mut.Lock()
+		delete(a.pendingAuthRequests, requestId)
+		a.mut.Unlock()
+	}()
+
+	a.tmess.Send("auth-code-created", code)
+
+	return requestId, nil
+
+}
+
+func (a *Auth) AuthorizeEmail(key Key) (string, error) {
 
 	requestId, err := genRandomKey()
 	if err != nil {
@@ -195,7 +236,7 @@ func (a *Auth) Authorize(key Key) (string, error) {
 	}
 
 	a.mut.Lock()
-	a.pendingAuthRequests[requestId] = &AuthRequest{
+	a.pendingAuthRequests[requestId] = &PendingAuthRequest{
 		code:    code,
 		keyring: []*Key{&key},
 	}

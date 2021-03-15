@@ -19,6 +19,7 @@ import (
 )
 
 type Server struct {
+	tmess     *treemess.TreeMess
 	config    *Config
 	backend   Backend
 	auth      *Auth
@@ -44,7 +45,7 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 		multiBackend.AddBackend(config.RcloneDir, rcloneBackend)
 	}
 
-	auth, err := NewAuth(config.DataDir, config)
+	auth, err := NewAuth(tmess, config.DataDir, config)
 	if err != nil {
 		return nil, err
 	}
@@ -71,6 +72,7 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 	})
 
 	return &Server{
+		tmess:   tmess,
 		config:  config,
 		backend: multiBackend,
 		auth:    auth,
@@ -464,22 +466,46 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		var key Key
-		err = json.Unmarshal(bodyJson, &key)
+		var authReq AuthRequest
+		err = json.Unmarshal(bodyJson, &authReq)
 		if err != nil {
 			w.WriteHeader(400)
 			io.WriteString(w, err.Error())
 			return
 		}
 
-		authId, err := s.auth.Authorize(key)
-		if err != nil {
+		switch authReq.Type {
+		case "direct-code":
+
+			if authReq.Key.Id == "" {
+				authReq.Key.Id = s.config.AdminEmail
+			}
+
+			authId, err := s.auth.AuthorizeDirectCode(authReq.Key)
+			if err != nil {
+				w.WriteHeader(400)
+				io.WriteString(w, err.Error())
+				return
+			}
+
+			io.WriteString(w, authId)
+
+		case "email-code":
+			authReq.Key.IdType = "email"
+			authReq.Key.Id = authReq.Email
+			authId, err := s.auth.AuthorizeEmail(authReq.Key)
+			if err != nil {
+				w.WriteHeader(400)
+				io.WriteString(w, err.Error())
+				return
+			}
+
+			io.WriteString(w, authId)
+		default:
 			w.WriteHeader(400)
-			io.WriteString(w, err.Error())
+			io.WriteString(w, "Invalid authorization request type")
 			return
 		}
-
-		io.WriteString(w, authId)
 	}
 }
 
