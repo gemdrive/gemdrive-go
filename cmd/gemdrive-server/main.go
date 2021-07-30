@@ -50,13 +50,15 @@ func main() {
 		config.Port = *port
 	}
 
-	if *dataDir != "" {
-		config.DataDir = filepath.Join(userDirs.GetDataDir(), "gemdrive")
+	if *dataDir == "" {
+		*dataDir = filepath.Join(userDirs.GetDataDir(), "gemdrive")
 	}
+        config.DataDir = *dataDir
 
-	if *cacheDir != "" {
-		config.CacheDir = filepath.Join(userDirs.GetCacheDir(), "gemdrive")
+	if *cacheDir == "" {
+                *cacheDir = filepath.Join(userDirs.GetCacheDir(), "gemdrive")
 	}
+        config.CacheDir = *cacheDir
 
 	if *rclone != "" {
 		config.RcloneDir = *rclone
