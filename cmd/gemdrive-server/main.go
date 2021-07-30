@@ -13,18 +13,12 @@ import (
 )
 
 func main() {
-	userDirs, err := gemdrive.NewUserDirs()
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	port := flag.Int("port", 0, "Port")
 	var dirs arrayFlags
 	flag.Var(&dirs, "dir", "Directory to add")
 	configPath := flag.String("config", "", "Config path")
-	configDir := flag.String("config-dir", filepath.Join(userDirs.GetConfigDir(), "gemdrive"), "Config directory")
-	dataDir := flag.String("database-dir", "", "Database directory")
-	cacheDir := flag.String("cache-dir", "", "Cache directory")
+	runDir := flag.String("run-dir", "", "Database directory")
 	rclone := flag.String("rclone", "", "Enable rclone proxy")
 	flag.Parse()
 
@@ -34,7 +28,7 @@ func main() {
 	}
 
 	if *configPath == "" {
-		*configPath = filepath.Join(*configDir, "gemdrive_config.json")
+		*configPath = filepath.Join(*runDir, "gemdrive_config.json")
 	}
 
 	configBytes, err := ioutil.ReadFile(*configPath)
@@ -50,15 +44,13 @@ func main() {
 		config.Port = *port
 	}
 
-	if *dataDir == "" {
-		*dataDir = filepath.Join(userDirs.GetDataDir(), "gemdrive")
-	}
-        config.DataDir = *dataDir
+        if config.DataDir == "" {
+                config.DataDir = filepath.Join(*runDir, "data")
+        }
 
-	if *cacheDir == "" {
-                *cacheDir = filepath.Join(userDirs.GetCacheDir(), "gemdrive")
-	}
-        config.CacheDir = *cacheDir
+        if config.CacheDir == "" {
+                config.CacheDir = filepath.Join(*runDir, "cache")
+        }
 
 	if *rclone != "" {
 		config.RcloneDir = *rclone
