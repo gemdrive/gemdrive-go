@@ -506,6 +506,10 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 					fmt.Println(err)
 				}
 			}
+		} else {
+			w.WriteHeader(400)
+			io.WriteString(w, "Invalid GemDrive request")
+			return
 		}
 	}
 }
