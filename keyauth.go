@@ -17,14 +17,18 @@ type KeyData struct {
 func (k KeyData) CanRead(pathStr string) bool {
 	for path, perm := range k.Privileges {
 		isSubpath := strings.HasPrefix(pathStr, path)
-		return isSubpath && permCanRead(perm)
+		if isSubpath && permCanRead(perm) {
+			return true
+		}
 	}
 	return false
 }
 func (k KeyData) CanWrite(pathStr string) bool {
 	for path, perm := range k.Privileges {
 		isSubpath := strings.HasPrefix(pathStr, path)
-		return isSubpath && permCanWrite(perm)
+		if isSubpath && permCanWrite(perm) {
+			return true
+		}
 	}
 	return false
 }
@@ -57,15 +61,6 @@ func (k KeyData) coveredBy(path, perm string, other *KeyData) bool {
 type Privilege struct {
 	Path string `json:"path"`
 	Perm string `json:"perm"`
-}
-
-func (p Privilege) CanRead(pathStr string) bool {
-	isSubpath := strings.HasPrefix(pathStr, p.Path)
-	return isSubpath && permCanRead(p.Perm)
-}
-func (p Privilege) CanWrite(pathStr string) bool {
-	isSubpath := strings.HasPrefix(pathStr, p.Path)
-	return isSubpath && permCanWrite(p.Perm)
 }
 
 type KeyAuth struct {
