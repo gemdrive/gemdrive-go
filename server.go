@@ -225,6 +225,10 @@ func (s *Server) handleHead(w http.ResponseWriter, r *http.Request, reqPath stri
 
 	token, _ := extractToken(r)
 
+	if token == "" {
+		token = "public"
+	}
+
 	header := w.Header()
 
 	if !s.keyAuth.CanRead(token, reqPath) {
@@ -260,6 +264,10 @@ func (s *Server) handleHead(w http.ResponseWriter, r *http.Request, reqPath stri
 func (s *Server) handlePut(w http.ResponseWriter, r *http.Request, reqPath string) {
 
 	token, _ := extractToken(r)
+
+	if token == "" {
+		token = "public"
+	}
 
 	query := r.URL.Query()
 
@@ -310,6 +318,10 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request, reqPath strin
 func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, reqPath string) {
 
 	token, _ := extractToken(r)
+
+	if token == "" {
+		token = "public"
+	}
 
 	query := r.URL.Query()
 
@@ -363,6 +375,10 @@ func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, reqPath str
 func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, reqPath string) {
 	token, _ := extractToken(r)
 
+	if token == "" {
+		token = "public"
+	}
+
 	query := r.URL.Query()
 
 	if !s.keyAuth.CanWrite(token, reqPath) {
@@ -398,6 +414,10 @@ func (s *Server) sendLoginPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, reqPath string) {
 
 	token, _ := extractToken(r)
+
+	if token == "" {
+		token = "public"
+	}
 
 	pathParts := strings.Split(reqPath, "gemdrive/")
 
@@ -584,6 +604,10 @@ func (s *Server) createKey(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serveItem(w http.ResponseWriter, r *http.Request, reqPath string) {
 
 	token, _ := extractToken(r)
+
+	if token == "" {
+		token = "public"
+	}
 
 	if !s.keyAuth.CanRead(token, reqPath) {
 		s.sendLoginPage(w, r)
