@@ -44,13 +44,13 @@ func main() {
 		config.Port = *port
 	}
 
-        if config.DataDir == "" {
-                config.DataDir = filepath.Join(*runDir, "data")
-        }
+	if config.DataDir == "" {
+		config.DataDir = filepath.Join(*runDir, "data")
+	}
 
-        if config.CacheDir == "" {
-                config.CacheDir = filepath.Join(*runDir, "cache")
-        }
+	if config.CacheDir == "" {
+		config.CacheDir = filepath.Join(*runDir, "cache")
+	}
 
 	if *rclone != "" {
 		config.RcloneDir = *rclone

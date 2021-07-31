@@ -25,8 +25,9 @@ type Server struct {
 	httpServer *http.Server
 	config     *Config
 	backend    Backend
-	auth       *Auth
 	loginHtml  []byte
+	db         *GemDriveDatabase
+	keyAuth    *KeyAuth
 }
 
 func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
@@ -48,7 +49,19 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 		multiBackend.AddBackend(config.RcloneDir, rcloneBackend)
 	}
 
-	auth, err := NewAuth(tmess, config.DataDir, config)
+	db, err := NewGemDriveDatabase(config.DataDir)
+	if err != nil {
+		return nil, err
+	}
+
+	masterKey, err := db.GetMasterKey()
+	if err != nil {
+		fmt.Println("No master key found. Shouldn't be possible")
+	}
+
+	fmt.Println("Master key: " + masterKey)
+
+	keyAuth, err := NewKeyAuth(db)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +71,8 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 		state:   "stopped",
 		config:  config,
 		backend: multiBackend,
-		auth:    auth,
+		keyAuth: keyAuth,
+		db:      db,
 	}
 
 	tmess.ListenFunc(func(msg treemess.Message) {
@@ -121,7 +135,13 @@ func (s *Server) start() {
 
 		header := w.Header()
 
-		header["Access-Control-Allow-Origin"] = []string{"*"}
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			origin = "*"
+		}
+
+		header["Access-Control-Allow-Origin"] = []string{origin}
+		//header["Access-Control-Allow-Credentials"] = []string{"true"}
 		header["Access-Control-Allow-Methods"] = []string{"*"}
 		header["Access-Control-Allow-Headers"] = []string{"*"}
 		if r.Method == "OPTIONS" {
@@ -207,7 +227,7 @@ func (s *Server) handleHead(w http.ResponseWriter, r *http.Request, reqPath stri
 
 	header := w.Header()
 
-	if !s.auth.CanRead(token, reqPath) {
+	if !s.keyAuth.CanRead(token, reqPath) {
 		s.sendLoginPage(w, r)
 		return
 	}
@@ -243,7 +263,7 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request, reqPath strin
 
 	query := r.URL.Query()
 
-	if !s.auth.CanWrite(token, reqPath) {
+	if !s.keyAuth.CanWrite(token, reqPath) {
 		s.sendLoginPage(w, r)
 		return
 	}
@@ -293,7 +313,7 @@ func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, reqPath str
 
 	query := r.URL.Query()
 
-	if !s.auth.CanWrite(token, reqPath) {
+	if !s.keyAuth.CanWrite(token, reqPath) {
 		s.sendLoginPage(w, r)
 		return
 	}
@@ -345,7 +365,7 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, reqPath st
 
 	query := r.URL.Query()
 
-	if !s.auth.CanWrite(token, reqPath) {
+	if !s.keyAuth.CanWrite(token, reqPath) {
 		s.sendLoginPage(w, r)
 		return
 	}
@@ -384,14 +404,24 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 	gemPath := pathParts[0]
 	gemReq := pathParts[1]
 
-	if gemReq == "authorize" {
+	//if gemReq == "authorize" {
 
-		s.authorize(w, r)
+	//	s.authorize(w, r)
 
+	//	return
+	//}
+
+	if gemReq == "create-key" {
+		s.createKey(w, r)
 		return
 	}
 
-	if !s.auth.CanRead(token, gemPath) {
+	if gemReq == "login" {
+		s.login(w, r)
+		return
+	}
+
+	if !s.keyAuth.CanRead(token, gemPath) {
 		s.sendLoginPage(w, r)
 		return
 	}
@@ -460,90 +490,102 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 	}
 }
 
-func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
+func (s *Server) login(w http.ResponseWriter, r *http.Request) {
+	key, _ := extractToken(r)
 
-	query := r.URL.Query()
-	id := query.Get("id")
-	code := query.Get("code")
+	fmt.Println(r.Header.Get("Origin"))
 
-	if id != "" && code != "" {
-		token, err := s.auth.CompleteAuth(id, code)
-		if err != nil {
-			w.WriteHeader(400)
-			io.WriteString(w, err.Error())
-			return
-		}
-
-		cookie := &http.Cookie{
-			Name:  "access_token",
-			Value: token,
-			// TODO: enable Secure
-			//Secure:   true,
-			HttpOnly: true,
-			MaxAge:   86400 * 365,
-			Path:     "/",
-			SameSite: http.SameSiteLaxMode,
-		}
-		http.SetCookie(w, cookie)
-
-		io.WriteString(w, token)
-
-	} else {
-		bodyJson, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			w.WriteHeader(400)
-			io.WriteString(w, err.Error())
-			return
-		}
-
-		var authReq AuthRequest
-		err = json.Unmarshal(bodyJson, &authReq)
-		if err != nil {
-			w.WriteHeader(400)
-			io.WriteString(w, err.Error())
-			return
-		}
-
-		switch authReq.Type {
-		case "direct-code":
-
-			if authReq.Key.Id == "" {
-				authReq.Key.Id = s.config.AdminEmail
-			}
-
-			authId, err := s.auth.AuthorizeDirectCode(authReq.Key)
-			if err != nil {
-				w.WriteHeader(400)
-				io.WriteString(w, err.Error())
-				return
-			}
-
-			io.WriteString(w, authId)
-
-		case "email-code":
-			authReq.Key.IdType = "email"
-			authReq.Key.Id = authReq.Email
-			authId, err := s.auth.AuthorizeEmail(authReq.Key)
-			if err != nil {
-				w.WriteHeader(400)
-				io.WriteString(w, err.Error())
-				return
-			}
-
-			io.WriteString(w, authId)
-		default:
-			w.WriteHeader(400)
-			io.WriteString(w, "Invalid authorization request type")
-			return
-		}
+	loginKeyData, err := s.db.GetKeyData(key)
+	if err != nil {
+		w.WriteHeader(400)
+		io.WriteString(w, err.Error())
+		return
 	}
+
+	newKey, _ := genRandomKey()
+
+	// Replace the login key with a new key. Return it and also set as a
+	// cookie.
+
+	err = s.db.AddKeyData(newKey, loginKeyData)
+	if err != nil {
+		w.WriteHeader(500)
+		io.WriteString(w, err.Error())
+		return
+	}
+
+	err = s.db.DeleteKeyData(key)
+	if err != nil {
+		w.WriteHeader(500)
+		io.WriteString(w, err.Error())
+		return
+	}
+
+	//cookie := &http.Cookie{
+	//        Name:  "access_token",
+	//        Value: newKey,
+	//        // TODO: enable Secure
+	//        //Secure:   true,
+	//        HttpOnly: true,
+	//        MaxAge:   86400 * 365,
+	//        Path:     "/",
+	//        SameSite: http.SameSiteLaxMode,
+	//}
+	//http.SetCookie(w, cookie)
+
+	io.WriteString(w, newKey)
+}
+
+func (s *Server) createKey(w http.ResponseWriter, r *http.Request) {
+	key, _ := extractToken(r)
+
+	bodyJson, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(400)
+		io.WriteString(w, err.Error())
+		return
+	}
+
+	reqKeyData := &KeyData{}
+	err = json.Unmarshal(bodyJson, reqKeyData)
+	if err != nil {
+		w.WriteHeader(400)
+		io.WriteString(w, err.Error())
+		return
+	}
+
+	parentKeyData, err := s.db.GetKeyData(key)
+	if err != nil {
+		w.WriteHeader(400)
+		io.WriteString(w, err.Error())
+		return
+	}
+
+	if !reqKeyData.IsSubsetOf(parentKeyData) {
+		w.WriteHeader(400)
+		io.WriteString(w, "You don't have permissions for that")
+		return
+	}
+
+	newKey, _ := genRandomKey()
+
+	reqKeyData.Parent = key
+
+	err = s.db.AddKeyData(newKey, reqKeyData)
+	if err != nil {
+		w.WriteHeader(500)
+		io.WriteString(w, err.Error())
+		return
+	}
+
+	io.WriteString(w, newKey)
 }
 
 func (s *Server) serveItem(w http.ResponseWriter, r *http.Request, reqPath string) {
 
 	token, _ := extractToken(r)
 
-	if !s.auth.CanRead(token, reqPath) {
+	if !s.keyAuth.CanRead(token, reqPath) {
 		s.sendLoginPage(w, r)
 		return
 	}
