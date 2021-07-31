@@ -14,7 +14,7 @@ import (
 
 func main() {
 
-	port := flag.Int("port", 0, "Port")
+	port := flag.Int("port", 3838, "Port")
 	var dirs arrayFlags
 	flag.Var(&dirs, "dir", "Directory to add")
 	configPath := flag.String("config", "", "Config path")
@@ -23,8 +23,11 @@ func main() {
 	flag.Parse()
 
 	config := &gemdrive.Config{
-		Port: 3838,
-		Dirs: []string{},
+		Port:      *port,
+		Dirs:      []string{},
+		DataDir:   *runDir,
+		CacheDir:  filepath.Join(*runDir, "cache"),
+		RcloneDir: *rclone,
 	}
 
 	if *configPath == "" {
@@ -32,28 +35,11 @@ func main() {
 	}
 
 	configBytes, err := ioutil.ReadFile(*configPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = json.Unmarshal(configBytes, &config)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if *port != 0 {
-		config.Port = *port
-	}
-
-	if config.DataDir == "" {
-		config.DataDir = filepath.Join(*runDir, "data")
-	}
-
-	if config.CacheDir == "" {
-		config.CacheDir = filepath.Join(*runDir, "cache")
-	}
-
-	if *rclone != "" {
-		config.RcloneDir = *rclone
+	if err == nil {
+		err = json.Unmarshal(configBytes, &config)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	for _, dir := range dirs {
