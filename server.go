@@ -440,9 +440,11 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 
-	if strings.HasSuffix(gemReq, "meta.json") {
+	listFilename := "list.json"
 
-		gemPath := mappedRoot + gemReq[:len(gemReq)-len("meta.json")]
+	if strings.HasPrefix(gemReq, "/index/") && strings.HasSuffix(gemReq, listFilename) {
+
+		gemPath := mappedRoot + gemReq[len("/index"):len(gemReq)-len(listFilename)]
 
 		if !s.keyAuth.CanRead(token, gemPath) {
 			s.sendLoginPage(w, r)
