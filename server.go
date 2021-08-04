@@ -155,22 +155,24 @@ func (s *Server) start() {
 			hostname = r.Host
 		}
 
-		if mapRoot, exists := s.config.DomainMap[hostname]; exists {
-			reqPath = mapRoot + reqPath
+		mappedRoot, exists := s.config.DomainMap[hostname]
+		if !exists {
+			mappedRoot = ""
 		}
 
 		logLine := fmt.Sprintf("%s\t%s\t%s", r.Method, hostname, reqPath)
 		fmt.Println(logLine)
 
-		pathParts := strings.Split(reqPath, "gemdrive/")
-
 		ext := path.Ext(reqPath)
 		contentType := mime.TypeByExtension(ext)
 		header.Set("Content-Type", contentType)
 
-		if len(pathParts) == 2 {
-			s.handleGemDriveRequest(w, r, reqPath)
+		if strings.HasPrefix(reqPath, "/gemdrive/") {
+			s.handleGemDriveRequest(w, r, reqPath, mappedRoot)
 		} else {
+
+			reqPath = mappedRoot + reqPath
+
 			switch r.Method {
 			case "HEAD":
 				s.handleHead(w, r, reqPath)
@@ -411,7 +413,7 @@ func (s *Server) sendLoginPage(w http.ResponseWriter, r *http.Request) {
 	w.Write(s.loginHtml)
 }
 
-func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, reqPath string) {
+func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, reqPath, mappedRoot string) {
 
 	token, _ := extractToken(r)
 
@@ -419,10 +421,7 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 		token = "public"
 	}
 
-	pathParts := strings.Split(reqPath, "gemdrive/")
-
-	gemPath := pathParts[0]
-	gemReq := pathParts[1]
+	gemReq := reqPath[len("/gemdrive"):]
 
 	//if gemReq == "authorize" {
 
@@ -431,22 +430,24 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 	//	return
 	//}
 
-	if gemReq == "create-key" {
+	if gemReq == "/create-key" {
 		s.createKey(w, r)
 		return
 	}
 
-	if gemReq == "login" {
+	if gemReq == "/login" {
 		s.login(w, r)
 		return
 	}
 
-	if !s.keyAuth.CanRead(token, gemPath) {
-		s.sendLoginPage(w, r)
-		return
-	}
+	if strings.HasSuffix(gemReq, "meta.json") {
 
-	if gemReq == "meta.json" {
+		gemPath := mappedRoot + gemReq[:len(gemReq)-len("meta.json")]
+
+		if !s.keyAuth.CanRead(token, gemPath) {
+			s.sendLoginPage(w, r)
+			return
+		}
 
 		depth := 1
 		depthParam := r.URL.Query().Get("depth")
@@ -482,18 +483,26 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 		w.Write(jsonBody)
 	} else {
 		gemReqParts := strings.Split(gemReq, "/")
-		if gemReqParts[0] == "images" {
+		if gemReqParts[1] == "images" {
+
+			sizeStr := gemReqParts[2]
+
+			gemPath := mappedRoot + gemReq[len("/images/")+len(sizeStr):]
+
+			if !s.keyAuth.CanRead(token, gemPath) {
+				s.sendLoginPage(w, r)
+				return
+			}
 
 			if b, ok := s.backend.(ImageServer); ok {
-				size, err := strconv.Atoi(gemReqParts[1])
+				size, err := strconv.Atoi(sizeStr)
 				if err != nil {
 					w.WriteHeader(400)
 					w.Write([]byte(err.Error()))
 					return
 				}
 
-				filename := gemReqParts[2]
-				imagePath := path.Join(gemPath, filename)
+				imagePath := gemPath
 				img, _, err := b.GetImage(imagePath, size)
 				if err != nil {
 					w.WriteHeader(500)
