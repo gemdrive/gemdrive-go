@@ -379,7 +379,9 @@ func ReadDir(dirPath string) ([]os.FileInfo, error) {
 		filePath := path.Join(dirPath, name)
 		fileInfo, err := os.Stat(filePath)
 		if err != nil {
-			return nil, err
+			errMsg := fmt.Sprintf("Warning: Ignoring file: %s. Might be a broken link.", filePath)
+			fmt.Println(errMsg)
+			continue
 		}
 
 		files = append(files, fileInfo)
