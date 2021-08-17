@@ -445,7 +445,7 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 		listFilename := "list.json"
 		treeFilename := "tree.json"
 
-		depth := 1
+		depth := 0
 		suffix := ""
 		if strings.HasSuffix(gemReq, listFilename) {
 			suffix = listFilename
