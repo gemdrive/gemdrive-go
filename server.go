@@ -440,27 +440,36 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 
-	listFilename := "list.json"
+	if strings.HasPrefix(gemReq, "/index/") {
 
-	if strings.HasPrefix(gemReq, "/index/") && strings.HasSuffix(gemReq, listFilename) {
+		listFilename := "list.json"
+		treeFilename := "tree.json"
 
-		gemPath := mappedRoot + gemReq[len("/index"):len(gemReq)-len(listFilename)]
+		depth := 1
+		suffix := ""
+		if strings.HasSuffix(gemReq, listFilename) {
+			suffix = listFilename
+		} else if strings.HasSuffix(gemReq, treeFilename) {
+
+			suffix = treeFilename
+
+			depthParam := r.URL.Query().Get("depth")
+			if depthParam != "" {
+				var err error
+				depth, err = strconv.Atoi(depthParam)
+				if err != nil {
+					w.WriteHeader(400)
+					w.Write([]byte("Invalid depth param"))
+					return
+				}
+			}
+		}
+
+		gemPath := mappedRoot + gemReq[len("/index"):len(gemReq)-len(suffix)]
 
 		if !s.keyAuth.CanRead(token, gemPath) {
 			s.sendLoginPage(w, r)
 			return
-		}
-
-		depth := 1
-		depthParam := r.URL.Query().Get("depth")
-		if depthParam != "" {
-			var err error
-			depth, err = strconv.Atoi(depthParam)
-			if err != nil {
-				w.WriteHeader(400)
-				w.Write([]byte("Invalid depth param"))
-				return
-			}
 		}
 
 		item, err := s.backend.List(gemPath, depth)
