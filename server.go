@@ -445,13 +445,15 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 		listFilename := "list.json"
 		treeFilename := "tree.json"
 
-		depth := 0
+		depth := 1
 		suffix := ""
 		if strings.HasSuffix(gemReq, listFilename) {
 			suffix = listFilename
 		} else if strings.HasSuffix(gemReq, treeFilename) {
 
 			suffix = treeFilename
+
+			depth = 0
 
 			depthParam := r.URL.Query().Get("depth")
 			if depthParam != "" {
