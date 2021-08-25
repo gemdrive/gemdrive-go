@@ -143,7 +143,8 @@ func (fs *FileSystemBackend) Read(reqPath string, offset, length int64) (*Item, 
 	}()
 
 	item := &Item{
-		Size: stat.Size(),
+		Size:    stat.Size(),
+		ModTime: stat.ModTime().UTC().Format(time.RFC3339),
 	}
 
 	return item, reader, nil

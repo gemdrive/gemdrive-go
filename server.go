@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/anderspitman/treemess-go"
 )
@@ -260,6 +261,14 @@ func (s *Server) handleHead(w http.ResponseWriter, r *http.Request, reqPath stri
 		return
 	}
 
+	modTime, err := time.Parse("2006-01-02T15:04:05Z", child.ModTime)
+	if err != nil {
+		w.WriteHeader(500)
+		io.WriteString(w, "Invalid ModTime")
+		return
+	}
+
+	header.Set("Last-Modified", modTime.Format(http.TimeFormat))
 	header.Set("Content-Length", fmt.Sprintf("%d", child.Size))
 }
 
@@ -725,6 +734,17 @@ func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, reqPath strin
 	} else {
 		header.Set("Content-Length", fmt.Sprintf("%d", item.Size))
 	}
+
+	fmt.Println(item.ModTime)
+
+	modTime, err := time.Parse("2006-01-02T15:04:05Z", item.ModTime)
+	if err != nil {
+		w.WriteHeader(500)
+		io.WriteString(w, "Invalid ModTime")
+		return
+	}
+
+	header.Set("Last-Modified", modTime.Format(http.TimeFormat))
 
 	_, err = io.Copy(w, data)
 	if err != nil {
