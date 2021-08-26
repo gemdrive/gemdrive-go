@@ -1,10 +1,12 @@
 package gemdrive
 
 import (
+	//"fmt"
 	"errors"
 	"io"
 	"strings"
 	"sync"
+	"time"
 )
 
 type MultiBackend struct {
@@ -49,20 +51,30 @@ func (b *MultiBackend) List(reqPath string, depth int) (*Item, error) {
 
 	if reqPath == "/" {
 		rootItem := &Item{
+			Size:     4096,
+			ModTime:  time.Now().UTC().Format(time.RFC3339),
 			Children: make(map[string]*Item),
 		}
 
-		for name := range backends {
-			rootItem.Children[name+"/"] = &Item{}
+		childDepth := depth
+		if depth > 1 {
+			childDepth = depth - 1
 		}
 
-		if depth == 0 || depth > 1 {
-			for name, backend := range backends {
-				child, err := backend.List("/", depth-1)
-				if err != nil {
-					return nil, err
-				}
+		for name, backend := range backends {
+			child, err := backend.List("/", childDepth)
+			if err != nil {
+				return nil, err
+			}
 
+			if depth == 1 {
+				// If depth is 1, only copy over the top-level
+				// information from the List call.
+				rootItem.Children[name+"/"] = &Item{
+					Size:    child.Size,
+					ModTime: child.ModTime,
+				}
+			} else {
 				rootItem.Children[name+"/"] = child
 			}
 		}

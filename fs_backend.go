@@ -57,12 +57,25 @@ func (fs *FileSystemBackend) List(reqPath string, depth int) (*Item, error) {
 
 	p := path.Join(fs.rootDir, reqPath)
 
+	dir, err := os.Open(p)
+	if err != nil {
+		return nil, errors.New("List: could not open directory")
+	}
+
+	stat, err := dir.Stat()
+	if err != nil {
+		return nil, errors.New("List: could not stat directory")
+	}
+
 	files, err := ReadDir(p)
 	if err != nil {
 		return nil, err
 	}
 
 	item := DirToGemDrive(files)
+
+	item.Size = stat.Size()
+	item.ModTime = stat.ModTime().UTC().Format(time.RFC3339)
 
 	if depth == 1 {
 		return item, nil
