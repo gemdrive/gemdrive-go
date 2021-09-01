@@ -449,6 +449,11 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 
+	if r.Method == "POST" && gemReq == "/remote-get" {
+		s.remoteGet(w, r)
+		return
+	}
+
 	if strings.HasPrefix(gemReq, "/index/") {
 
 		listFilename := "list.json"
@@ -662,12 +667,16 @@ func (s *Server) serveDir(w http.ResponseWriter, r *http.Request, reqPath string
 	// If the directory contains an index.html file, serve that by default.
 	// Otherwise reading a directory is an error.
 	htmlIndexPath := reqPath + "index.html"
-	_, data, err := s.backend.Read(htmlIndexPath, 0, 0)
+	item, data, err := s.backend.Read(htmlIndexPath, 0, 0)
 	if err != nil {
 		w.WriteHeader(400)
 		io.WriteString(w, "Attempted to read directory")
 		return
 	}
+
+	header := w.Header()
+	header.Set("Content-Length", fmt.Sprintf("%d", item.Size))
+	header.Set("Content-Type", "text/html")
 
 	_, err = io.Copy(w, data)
 	if err != nil {
@@ -734,8 +743,6 @@ func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, reqPath strin
 	} else {
 		header.Set("Content-Length", fmt.Sprintf("%d", item.Size))
 	}
-
-	fmt.Println(item.ModTime)
 
 	modTime, err := time.Parse("2006-01-02T15:04:05Z", item.ModTime)
 	if err != nil {

@@ -12,6 +12,16 @@ type Item struct {
 	IsExecutable bool             `json:"isExecutable,omitempty"`
 }
 
+type RemoteGetRequest struct {
+	Source            string `json:"source,omitempty"`
+	Destination       string `json:"destination,omitempty"`
+	Size              int64  `json:"size,omitempty"`
+	SourceOffset      int64  `json:"sourceOffset,omitempty"`
+	DestinationOffset int64  `json:"destinationOffset,omitempty"`
+	Overwrite         bool   `json:"overwrite,omitempty"`
+	Truncate          bool   `json:"truncate,omitempty"`
+}
+
 type Backend interface {
 	List(path string, maxDepth int) (*Item, error)
 	Read(path string, offset, length int64) (*Item, io.ReadCloser, error)
