@@ -429,7 +429,7 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 
-	if r.Method == "POST" && gemReq == "/remote-get" {
+	if r.Method == "POST" && strings.HasPrefix(gemReq, "/remote-get") {
 		s.remoteGet(w, r)
 		return
 	}

@@ -44,7 +44,7 @@ func (s *Server) remoteGet(w http.ResponseWriter, r *http.Request) {
 
 	if !s.keyAuth.CanWrite(key, reqData.Destination) {
 		w.WriteHeader(403)
-		io.WriteString(w, "remote-get: You don't have permission to write to"+reqData.Destination)
+		io.WriteString(w, "remote-get: You don't have permission to write to "+reqData.Destination)
 		return
 	}
 
