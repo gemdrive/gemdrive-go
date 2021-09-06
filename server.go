@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/GeertJohan/go.rice"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -120,20 +119,6 @@ func (s *Server) start() {
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
-		box, err := rice.FindBox("files")
-		if err != nil {
-			w.WriteHeader(500)
-			io.WriteString(w, err.Error())
-			return
-		}
-
-		s.loginHtml, err = box.Bytes("login.html")
-		if err != nil {
-			w.WriteHeader(500)
-			io.WriteString(w, err.Error())
-			return
-		}
-
 		header := w.Header()
 
 		origin := r.Header.Get("Origin")
@@ -235,7 +220,7 @@ func (s *Server) handleHead(w http.ResponseWriter, r *http.Request, reqPath stri
 	header := w.Header()
 
 	if !s.keyAuth.CanRead(token, reqPath) {
-		s.sendLoginPage(w, r)
+		s.sendUnauthorized(w, r)
 		return
 	}
 
@@ -283,7 +268,7 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request, reqPath strin
 	query := r.URL.Query()
 
 	if !s.keyAuth.CanWrite(token, reqPath) {
-		s.sendLoginPage(w, r)
+		s.sendUnauthorized(w, r)
 		return
 	}
 
@@ -337,7 +322,7 @@ func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, reqPath str
 	query := r.URL.Query()
 
 	if !s.keyAuth.CanWrite(token, reqPath) {
-		s.sendLoginPage(w, r)
+		s.sendUnauthorized(w, r)
 		return
 	}
 
@@ -393,7 +378,7 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, reqPath st
 	query := r.URL.Query()
 
 	if !s.keyAuth.CanWrite(token, reqPath) {
-		s.sendLoginPage(w, r)
+		s.sendUnauthorized(w, r)
 		return
 	}
 
@@ -414,12 +399,12 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, reqPath st
 	}
 }
 
-func (s *Server) sendLoginPage(w http.ResponseWriter, r *http.Request) {
+func (s *Server) sendUnauthorized(w http.ResponseWriter, r *http.Request) {
 	header := w.Header()
-	header.Set("WWW-Authenticate", "emauth realm=\"Everything\", charset=\"UTF-8\"")
-	header.Set("Content-Type", "text/html; charset=utf-8")
+	// Need to remove content type in case it's set
+	header.Del("Content-Type")
 	w.WriteHeader(403)
-	w.Write(s.loginHtml)
+	io.WriteString(w, "Unauthorized")
 }
 
 func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, reqPath, mappedRoot string) {
@@ -479,7 +464,7 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 		gemPath := mappedRoot + gemReq[len("/index"):len(gemReq)-len(suffix)]
 
 		if !s.keyAuth.CanRead(token, gemPath) {
-			s.sendLoginPage(w, r)
+			s.sendUnauthorized(w, r)
 			return
 		}
 
@@ -512,7 +497,7 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 			gemPath := mappedRoot + gemReq[len("/images/")+len(sizeStr):]
 
 			if !s.keyAuth.CanRead(token, gemPath) {
-				s.sendLoginPage(w, r)
+				s.sendUnauthorized(w, r)
 				return
 			}
 
@@ -599,7 +584,7 @@ func (s *Server) serveItem(w http.ResponseWriter, r *http.Request, reqPath strin
 	}
 
 	if !s.keyAuth.CanRead(token, reqPath) {
-		s.sendLoginPage(w, r)
+		s.sendUnauthorized(w, r)
 		return
 	}
 
