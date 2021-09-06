@@ -444,11 +444,6 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 
-	if gemReq == "/login" {
-		s.login(w, r)
-		return
-	}
-
 	if r.Method == "POST" && gemReq == "/remote-get" {
 		s.remoteGet(w, r)
 		return
@@ -548,52 +543,6 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 			return
 		}
 	}
-}
-
-func (s *Server) login(w http.ResponseWriter, r *http.Request) {
-	key, _ := extractToken(r)
-
-	fmt.Println(r.Header.Get("Origin"))
-
-	loginKeyData, err := s.db.GetKeyData(key)
-	if err != nil {
-		w.WriteHeader(400)
-		io.WriteString(w, err.Error())
-		return
-	}
-
-	newKey, _ := genRandomKey()
-
-	// Replace the login key with a new key. Return it and also set as a
-	// cookie.
-
-	err = s.db.AddKeyData(newKey, loginKeyData)
-	if err != nil {
-		w.WriteHeader(500)
-		io.WriteString(w, err.Error())
-		return
-	}
-
-	err = s.db.DeleteKeyData(key)
-	if err != nil {
-		w.WriteHeader(500)
-		io.WriteString(w, err.Error())
-		return
-	}
-
-	//cookie := &http.Cookie{
-	//        Name:  "access_token",
-	//        Value: newKey,
-	//        // TODO: enable Secure
-	//        //Secure:   true,
-	//        HttpOnly: true,
-	//        MaxAge:   86400 * 365,
-	//        Path:     "/",
-	//        SameSite: http.SameSiteLaxMode,
-	//}
-	//http.SetCookie(w, cookie)
-
-	io.WriteString(w, newKey)
 }
 
 func (s *Server) createKey(w http.ResponseWriter, r *http.Request) {
