@@ -13,13 +13,14 @@ type Item struct {
 }
 
 type RemoteGetRequest struct {
-	Source            string `json:"source,omitempty"`
-	Destination       string `json:"destination,omitempty"`
-	Size              int64  `json:"size,omitempty"`
-	SourceOffset      int64  `json:"sourceOffset,omitempty"`
-	DestinationOffset int64  `json:"destinationOffset,omitempty"`
-	Overwrite         bool   `json:"overwrite,omitempty"`
-	Truncate          bool   `json:"truncate,omitempty"`
+	Source             string `json:"source,omitempty"`
+	Destination        string `json:"destination,omitempty"`
+	Size               int64  `json:"size,omitempty"`
+	PreserveAttributes bool   `json:"preserveAttributes,omitempty"`
+	SourceOffset       int64  `json:"sourceOffset,omitempty"`
+	DestinationOffset  int64  `json:"destinationOffset,omitempty"`
+	Overwrite          bool   `json:"overwrite,omitempty"`
+	Truncate           bool   `json:"truncate,omitempty"`
 }
 
 type Backend interface {
@@ -29,7 +30,7 @@ type Backend interface {
 
 type WritableBackend interface {
 	MakeDir(path string, recursive bool) error
-	Write(path string, data io.Reader, offset, length int64, overwrite, truncate bool) error
+	Write(path string, data io.Reader, offset, length int64, modTime string, overwrite, truncate bool) error
 	Delete(path string, recursive bool) error
 }
 

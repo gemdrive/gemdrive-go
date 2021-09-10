@@ -188,7 +188,7 @@ func (fs *FileSystemBackend) MakeDir(reqPath string, recursive bool) error {
 	return nil
 }
 
-func (fs *FileSystemBackend) Write(reqPath string, data io.Reader, offset, length int64, overwrite, truncate bool) error {
+func (fs *FileSystemBackend) Write(reqPath string, data io.Reader, offset, length int64, modTime string, overwrite, truncate bool) error {
 
 	fsPath := path.Join(fs.rootDir, reqPath)
 
@@ -216,6 +216,19 @@ func (fs *FileSystemBackend) Write(reqPath string, data io.Reader, offset, lengt
 	n, err := io.Copy(file, data)
 	if err != nil {
 		return err
+	}
+
+	if modTime != "" {
+		mtime, err := time.Parse("2006-01-02T15:04:05Z", modTime)
+		if err != nil {
+			return err
+		}
+
+		atime := mtime
+		err = os.Chtimes(fsPath, atime, mtime)
+		if err != nil {
+			return err
+		}
 	}
 
 	if n != length {

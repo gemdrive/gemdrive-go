@@ -1,7 +1,6 @@
 package gemdrive
 
 import (
-	//"fmt"
 	"errors"
 	"io"
 	"strings"
@@ -130,7 +129,7 @@ func (b *MultiBackend) MakeDir(reqPath string, recursive bool) error {
 	return nil
 }
 
-func (b *MultiBackend) Write(reqPath string, data io.Reader, offset, length int64, overwrite, truncate bool) error {
+func (b *MultiBackend) Write(reqPath string, data io.Reader, offset, length int64, modTime string, overwrite, truncate bool) error {
 
 	backendName, subPath, err := b.parsePath(reqPath)
 	if err != nil {
@@ -145,7 +144,7 @@ func (b *MultiBackend) Write(reqPath string, data io.Reader, offset, length int6
 	b.mut.Unlock()
 
 	if backend, ok := backend.(WritableBackend); ok {
-		return backend.Write(subPath, data, offset, length, overwrite, truncate)
+		return backend.Write(subPath, data, offset, length, modTime, overwrite, truncate)
 	}
 
 	return nil
@@ -166,9 +165,12 @@ func (b *MultiBackend) Delete(reqPath string, recursive bool) error {
 
 	if backend, ok := backend.(WritableBackend); ok {
 		return backend.Delete(subPath, recursive)
+	} else {
+		return &Error{
+			HttpCode: 400,
+			Message:  "Backend does not support writing",
+		}
 	}
-
-	return nil
 }
 
 func (b *MultiBackend) GetImage(reqPath string, size int) (io.Reader, int64, error) {

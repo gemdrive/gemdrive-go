@@ -302,7 +302,9 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request, reqPath strin
 			return
 		}
 
-		err := backend.Write(reqPath, r.Body, offset, r.ContentLength, overwrite, truncate)
+		modTime := ""
+
+		err := backend.Write(reqPath, r.Body, offset, r.ContentLength, modTime, overwrite, truncate)
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
@@ -360,7 +362,9 @@ func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, reqPath str
 		return
 	}
 
-	err = backend.Write(reqPath, r.Body, int64(offset), int64(size), overwrite, truncate)
+	modTime := ""
+
+	err = backend.Write(reqPath, r.Body, int64(offset), int64(size), modTime, overwrite, truncate)
 	if err != nil {
 		w.WriteHeader(500)
 		io.WriteString(w, err.Error())
@@ -392,7 +396,11 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, reqPath st
 
 	recursive := query.Get("recursive") == "true"
 	err := backend.Delete(reqPath, recursive)
-	if err != nil {
+	if e, ok := err.(*Error); ok {
+		w.WriteHeader(e.HttpCode)
+		w.Write([]byte(e.Message))
+		return
+	} else if err != nil {
 		w.WriteHeader(500)
 		io.WriteString(w, err.Error())
 		return
