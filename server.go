@@ -309,7 +309,25 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request, reqPath strin
 			return
 		}
 
-		err = backend.SetAttributes(reqPath, time.Now(), false)
+		s.setAttrs(w, r, reqPath, backend)
+	}
+}
+
+func (s *Server) setAttrs(w http.ResponseWriter, r *http.Request, reqPath string, backend WritableBackend) {
+	query := r.URL.Query()
+
+	modTimeStr := query.Get("mod-time")
+	isExecutable := query.Get("is-executable") == "true"
+
+	if modTimeStr != "" || isExecutable {
+		modTime, err := time.Parse("2006-01-02T15:04:05Z", modTimeStr)
+		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		err = backend.SetAttributes(reqPath, modTime, isExecutable)
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
@@ -374,12 +392,7 @@ func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, reqPath str
 		return
 	}
 
-	err = backend.SetAttributes(reqPath, time.Now(), false)
-	if err != nil {
-		w.WriteHeader(500)
-		io.WriteString(w, err.Error())
-		return
-	}
+	s.setAttrs(w, r, reqPath, backend)
 }
 
 func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, reqPath string) {
@@ -702,8 +715,13 @@ func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, reqPath strin
 		io.WriteString(w, "Invalid ModTime")
 		return
 	}
-
 	header.Set("Last-Modified", modTime.Format(http.TimeFormat))
+
+	isExecutableHeader := "false"
+	if item.IsExecutable {
+		isExecutableHeader = "true"
+	}
+	header.Set("GemDrive-IsExecutable", isExecutableHeader)
 
 	_, err = io.Copy(w, data)
 	if err != nil {

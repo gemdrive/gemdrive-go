@@ -79,8 +79,9 @@ func (s *Server) remoteGet(w http.ResponseWriter, r *http.Request) {
 
 	if reqData.PreserveAttributes {
 		lastModified := resp.Header.Get("Last-Modified")
+		isExecutableHeader := resp.Header.Get("GemDrive-IsExecutable")
 
-		if lastModified != "" {
+		if lastModified != "" || isExecutableHeader != "" {
 			modTime, err := time.Parse(http.TimeFormat, lastModified)
 			if err != nil {
 				w.WriteHeader(500)
@@ -88,7 +89,9 @@ func (s *Server) remoteGet(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			err = backend.SetAttributes(reqData.Destination, modTime, false)
+			isExecutable := isExecutableHeader == "true"
+
+			err = backend.SetAttributes(reqData.Destination, modTime, isExecutable)
 			if err != nil {
 				w.WriteHeader(500)
 				io.WriteString(w, err.Error())

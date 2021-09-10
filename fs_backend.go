@@ -156,8 +156,9 @@ func (fs *FileSystemBackend) Read(reqPath string, offset, length int64) (*Item, 
 	}()
 
 	item := &Item{
-		Size:    stat.Size(),
-		ModTime: stat.ModTime().UTC().Format(time.RFC3339),
+		Size:         stat.Size(),
+		ModTime:      stat.ModTime().UTC().Format(time.RFC3339),
+		IsExecutable: IsExecutable(stat),
 	}
 
 	return item, reader, nil
@@ -234,6 +235,24 @@ func (fs *FileSystemBackend) SetAttributes(reqPath string, modTime time.Time, is
 	if err != nil {
 		return err
 	}
+
+	fileInfo, err := os.Stat(fsPath)
+	if err != nil {
+		return err
+	}
+
+	perms := fileInfo.Mode().Perm()
+
+	currentlyExecutable := IsExecutable(fileInfo)
+
+	if currentlyExecutable != isExecutable {
+		newPerms := perms | 0111
+		err = os.Chmod(fsPath, newPerms)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -381,8 +400,11 @@ func DirToGemDrive(files []os.FileInfo) *Item {
 	return item
 }
 
+// Files are considered executable if anyone can execute them
+// See here: https://stackoverflow.com/a/60128480/943814
 func IsExecutable(f os.FileInfo) bool {
-	return f.Mode()&0111 != 0
+	//return f.Mode() & 0111 != 0
+	return f.Mode()&0111 == 0111
 }
 
 // Like ioutil.ReadDir but follows symlinks
