@@ -188,7 +188,7 @@ func (fs *FileSystemBackend) MakeDir(reqPath string, recursive bool) error {
 	return nil
 }
 
-func (fs *FileSystemBackend) Write(reqPath string, data io.Reader, offset, length int64, modTime string, overwrite, truncate bool) error {
+func (fs *FileSystemBackend) Write(reqPath string, data io.Reader, offset, length int64, overwrite, truncate bool) error {
 
 	fsPath := path.Join(fs.rootDir, reqPath)
 
@@ -218,23 +218,22 @@ func (fs *FileSystemBackend) Write(reqPath string, data io.Reader, offset, lengt
 		return err
 	}
 
-	if modTime != "" {
-		mtime, err := time.Parse("2006-01-02T15:04:05Z", modTime)
-		if err != nil {
-			return err
-		}
-
-		atime := mtime
-		err = os.Chtimes(fsPath, atime, mtime)
-		if err != nil {
-			return err
-		}
-	}
-
 	if n != length {
 		return errors.New("n did not match length")
 	}
 
+	return nil
+}
+
+func (fs *FileSystemBackend) SetAttributes(reqPath string, modTime time.Time, isExecutable bool) error {
+
+	fsPath := path.Join(fs.rootDir, reqPath)
+
+	accessTime := modTime
+	err := os.Chtimes(fsPath, accessTime, modTime)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -416,3 +415,9 @@ func ReadDir(dirPath string) ([]os.FileInfo, error) {
 
 	return files, nil
 }
+
+var (
+	_ Backend         = (*FileSystemBackend)(nil)
+	_ WritableBackend = (*FileSystemBackend)(nil)
+	_ ImageServer     = (*FileSystemBackend)(nil)
+)

@@ -302,9 +302,14 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request, reqPath strin
 			return
 		}
 
-		modTime := ""
+		err := backend.Write(reqPath, r.Body, offset, r.ContentLength, overwrite, truncate)
+		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
 
-		err := backend.Write(reqPath, r.Body, offset, r.ContentLength, modTime, overwrite, truncate)
+		err = backend.SetAttributes(reqPath, time.Now(), false)
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
@@ -362,9 +367,14 @@ func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, reqPath str
 		return
 	}
 
-	modTime := ""
+	err = backend.Write(reqPath, r.Body, int64(offset), int64(size), overwrite, truncate)
+	if err != nil {
+		w.WriteHeader(500)
+		io.WriteString(w, err.Error())
+		return
+	}
 
-	err = backend.Write(reqPath, r.Body, int64(offset), int64(size), modTime, overwrite, truncate)
+	err = backend.SetAttributes(reqPath, time.Now(), false)
 	if err != nil {
 		w.WriteHeader(500)
 		io.WriteString(w, err.Error())

@@ -129,7 +129,7 @@ func (b *MultiBackend) MakeDir(reqPath string, recursive bool) error {
 	return nil
 }
 
-func (b *MultiBackend) Write(reqPath string, data io.Reader, offset, length int64, modTime string, overwrite, truncate bool) error {
+func (b *MultiBackend) Write(reqPath string, data io.Reader, offset, length int64, overwrite, truncate bool) error {
 
 	backendName, subPath, err := b.parsePath(reqPath)
 	if err != nil {
@@ -144,7 +144,32 @@ func (b *MultiBackend) Write(reqPath string, data io.Reader, offset, length int6
 	b.mut.Unlock()
 
 	if backend, ok := backend.(WritableBackend); ok {
-		return backend.Write(subPath, data, offset, length, modTime, overwrite, truncate)
+		return backend.Write(subPath, data, offset, length, overwrite, truncate)
+	}
+
+	return nil
+}
+
+func (b *MultiBackend) SetAttributes(reqPath string, modTime time.Time, isExecutable bool) error {
+	backendName, subPath, err := b.parsePath(reqPath)
+	if err != nil {
+		return &Error{
+			HttpCode: 404,
+			Message:  "Not found",
+		}
+	}
+
+	b.mut.Lock()
+	backend := b.backends[backendName]
+	b.mut.Unlock()
+
+	if backend, ok := backend.(WritableBackend); ok {
+		return backend.SetAttributes(subPath, modTime, isExecutable)
+	} else {
+		return &Error{
+			HttpCode: 500,
+			Message:  "Backend does not support writing",
+		}
 	}
 
 	return nil
@@ -167,7 +192,7 @@ func (b *MultiBackend) Delete(reqPath string, recursive bool) error {
 		return backend.Delete(subPath, recursive)
 	} else {
 		return &Error{
-			HttpCode: 400,
+			HttpCode: 500,
 			Message:  "Backend does not support writing",
 		}
 	}
@@ -215,3 +240,9 @@ func (b *MultiBackend) parsePath(reqPath string) (string, string, error) {
 
 	return backendName, subPath, nil
 }
+
+var (
+	_ Backend         = (*MultiBackend)(nil)
+	_ WritableBackend = (*MultiBackend)(nil)
+	_ ImageServer     = (*MultiBackend)(nil)
+)

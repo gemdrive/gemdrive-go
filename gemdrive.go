@@ -3,6 +3,7 @@ package gemdrive
 import (
 	"fmt"
 	"io"
+	"time"
 )
 
 type Item struct {
@@ -30,7 +31,8 @@ type Backend interface {
 
 type WritableBackend interface {
 	MakeDir(path string, recursive bool) error
-	Write(path string, data io.Reader, offset, length int64, modTime string, overwrite, truncate bool) error
+	Write(path string, data io.Reader, offset, length int64, overwrite, truncate bool) error
+	SetAttributes(path string, modTime time.Time, isExecutable bool) error
 	Delete(path string, recursive bool) error
 }
 

@@ -70,26 +70,30 @@ func (s *Server) remoteGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	modTime := ""
+	err = backend.Write(reqData.Destination, resp.Body, reqData.DestinationOffset, resp.ContentLength, reqData.Overwrite, reqData.Truncate)
+	if err != nil {
+		w.WriteHeader(500)
+		io.WriteString(w, err.Error())
+		return
+	}
+
 	if reqData.PreserveAttributes {
 		lastModified := resp.Header.Get("Last-Modified")
 
 		if lastModified != "" {
-			t, err := time.Parse(http.TimeFormat, lastModified)
+			modTime, err := time.Parse(http.TimeFormat, lastModified)
 			if err != nil {
 				w.WriteHeader(500)
 				io.WriteString(w, err.Error())
 				return
 			}
 
-			modTime = t.Format(time.RFC3339)
+			err = backend.SetAttributes(reqData.Destination, modTime, false)
+			if err != nil {
+				w.WriteHeader(500)
+				io.WriteString(w, err.Error())
+				return
+			}
 		}
-	}
-
-	err = backend.Write(reqData.Destination, resp.Body, reqData.DestinationOffset, resp.ContentLength, modTime, reqData.Overwrite, reqData.Truncate)
-	if err != nil {
-		w.WriteHeader(500)
-		io.WriteString(w, err.Error())
-		return
 	}
 }
