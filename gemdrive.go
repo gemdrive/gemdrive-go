@@ -56,4 +56,5 @@ type Config struct {
 	CacheDir  string            `json:"cacheDir,omitempty"`
 	RcloneDir string            `json:"rcloneDir,omitempty"`
 	DomainMap map[string]string `json:"domainMap,omitempty"`
+	WaygateServer string `json:"waygateServer,omitempty"`
 }
