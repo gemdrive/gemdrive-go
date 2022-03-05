@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/anderspitman/treemess-go"
-        "github.com/takingnames/waygate-go"
+	"github.com/takingnames/waygate-go"
 )
 
 type Server struct {
@@ -32,8 +32,8 @@ type Server struct {
 }
 
 type HttpServer interface {
-        ListenAndServe() error
-        Shutdown(context.Context) error
+	ListenAndServe() error
+	Shutdown(context.Context) error
 }
 
 func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
@@ -182,18 +182,17 @@ func (s *Server) start() {
 		}
 	})
 
-        if s.config.WaygateServer != "" {
-                s.httpServer = &waygate.HttpServer{
-                        WaygateServerUri: s.config.WaygateServer,
-                        Handler: mux,
-                }
-        } else {
-                s.httpServer = &http.Server{
-                	Addr:    fmt.Sprintf(":%d", s.config.Port),
-                	Handler: mux,
-                }
-        }
-
+	if s.config.WaygateServer != "" {
+		s.httpServer = &waygate.HttpServer{
+			WaygateServerUri: s.config.WaygateServer,
+			Handler:          mux,
+		}
+	} else {
+		s.httpServer = &http.Server{
+			Addr:    fmt.Sprintf(":%d", s.config.Port),
+			Handler: mux,
+		}
+	}
 
 	go func() {
 		err := s.httpServer.ListenAndServe()
