@@ -183,6 +183,9 @@ func (s *Server) start() {
 	})
 
 	if s.config.WaygateServer != "" {
+		waygate.ClientDatabaseFactory = func() waygate.ClientDatabase {
+			return s.db
+		}
 		s.httpServer = &waygate.HttpServer{
 			WaygateServerUri: s.config.WaygateServer,
 			Handler:          mux,
