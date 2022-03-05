@@ -183,7 +183,7 @@ func (s *Server) start() {
 	})
 
 	if s.config.WaygateServer != "" {
-		waygate.ClientDatabaseFactory = func() waygate.ClientDatabase {
+		waygate.ClientStoreFactory = func() waygate.ClientStore {
 			return s.db
 		}
 		s.httpServer = &waygate.HttpServer{
