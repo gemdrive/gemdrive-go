@@ -38,7 +38,7 @@ func NewGemDriveDatabase(dir string) (*GemDriveDatabase, error) {
 
 	_, err = db.GetMasterKey()
 	if err != nil {
-		key, err := genRandomKey()
+		masterKey, err := genRandomKey()
 		if err != nil {
 			log.Println(err)
 		}
@@ -49,7 +49,14 @@ func NewGemDriveDatabase(dir string) (*GemDriveDatabase, error) {
 				"/": "write",
 			},
 		}
-		db.AddKeyData(key, masterKeyData)
+		db.SetKeyData(masterKey, masterKeyData)
+
+		publicKeyData := &KeyData{
+			Parent:     masterKey,
+			Privileges: make(map[string]string),
+		}
+		db.SetKeyData("public", publicKeyData)
+
 		db.Persist()
 	}
 
@@ -61,21 +68,13 @@ func (db GemDriveDatabase) Persist() error {
 	return nil
 }
 
-func (db *GemDriveDatabase) AddKeyData(key string, keyData *KeyData) error {
+func (db *GemDriveDatabase) SetKeyData(key string, keyData *KeyData) {
 	db.mutex.Lock()
 	defer db.mutex.Unlock()
-
-	_, exists := db.Keys[key]
-
-	if exists {
-		return errors.New("Key exists")
-	}
 
 	db.Keys[key] = keyData
 
 	db.Persist()
-
-	return nil
 }
 
 func (db *GemDriveDatabase) DeleteKeyData(key string) error {

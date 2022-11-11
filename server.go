@@ -495,6 +495,16 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 
+	if r.Method == "PUT" && strings.HasPrefix(gemReq, "/keys/") {
+
+		pathParts := strings.Split(gemReq, "/")
+
+		key := pathParts[len(pathParts)-1]
+
+		s.setKey(w, r, key)
+		return
+	}
+
 	if strings.HasPrefix(gemReq, "/index/") {
 
 		listFilename := "list.json"
@@ -591,49 +601,80 @@ func (s *Server) handleGemDriveRequest(w http.ResponseWriter, r *http.Request, r
 	}
 }
 
-func (s *Server) createKey(w http.ResponseWriter, r *http.Request) {
-	key, _ := extractToken(r)
+func (s *Server) checkNewKeyRequest(w http.ResponseWriter, r *http.Request, parentKey string) (*KeyData, error) {
 
 	bodyJson, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		w.WriteHeader(400)
-		io.WriteString(w, err.Error())
-		return
+		return nil, err
 	}
 
 	reqKeyData := &KeyData{}
 	err = json.Unmarshal(bodyJson, reqKeyData)
 	if err != nil {
-		w.WriteHeader(400)
-		io.WriteString(w, err.Error())
-		return
+		return nil, err
 	}
 
-	parentKeyData, err := s.db.GetKeyData(key)
+	parentKeyData, err := s.db.GetKeyData(parentKey)
 	if err != nil {
-		w.WriteHeader(400)
-		io.WriteString(w, err.Error())
-		return
+		return nil, err
 	}
 
 	if !reqKeyData.IsSubsetOf(parentKeyData) {
-		w.WriteHeader(400)
-		io.WriteString(w, "You don't have permissions for that")
-		return
+		return nil, errors.New("You don't have permissions for that")
 	}
 
-	newKey, _ := genRandomKey()
+	return reqKeyData, nil
+}
 
-	reqKeyData.Parent = key
+func (s *Server) createKey(w http.ResponseWriter, r *http.Request) {
 
-	err = s.db.AddKeyData(newKey, reqKeyData)
+	parentKey, _ := extractToken(r)
+
+	reqKeyData, err := s.checkNewKeyRequest(w, r, parentKey)
 	if err != nil {
 		w.WriteHeader(500)
 		io.WriteString(w, err.Error())
 		return
 	}
 
+	newKey, _ := genRandomKey()
+
+	reqKeyData.Parent = parentKey
+
+	s.db.SetKeyData(newKey, reqKeyData)
+
 	io.WriteString(w, newKey)
+}
+
+func (s *Server) setKey(w http.ResponseWriter, r *http.Request, key string) {
+
+	fmt.Println("key", key)
+
+	reqKey, _ := extractToken(r)
+
+	masterKey, err := s.db.GetMasterKey()
+	if err != nil {
+		w.WriteHeader(500)
+		io.WriteString(w, err.Error())
+		return
+	}
+
+	if reqKey != masterKey {
+		w.WriteHeader(400)
+		io.WriteString(w, "Only the master key can set keys")
+		return
+	}
+
+	reqKeyData, err := s.checkNewKeyRequest(w, r, reqKey)
+	if err != nil {
+		w.WriteHeader(500)
+		io.WriteString(w, err.Error())
+		return
+	}
+
+	reqKeyData.Parent = reqKey
+
+	s.db.SetKeyData(key, reqKeyData)
 }
 
 func (s *Server) serveItem(w http.ResponseWriter, r *http.Request, reqPath string) {

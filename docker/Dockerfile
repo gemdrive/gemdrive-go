@@ -3,7 +3,7 @@
 
 FROM alpine:3.16 as builder
 
-RUN ["mkdir", "/data"]
+RUN ["mkdir", "/drive"]
 
 
 #FROM scratch
@@ -14,4 +14,4 @@ COPY gemdrive-server /
 
 ENTRYPOINT ["/gemdrive-server"]
 
-CMD ["-dir", "/data"]
+CMD ["-dir", "/drive"]
