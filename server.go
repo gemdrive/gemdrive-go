@@ -38,21 +38,35 @@ type HttpServer interface {
 
 func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 
-	multiBackend := NewMultiBackend()
+	var backend Backend
 
-	for _, dir := range config.Dirs {
-		dirName := filepath.Base(dir)
-		subCacheDir := filepath.Join(config.CacheDir, dirName)
-		fsBackend, err := NewFileSystemBackend(dir, subCacheDir)
+	if len(config.Dirs) == 1 && config.RcloneDir == "" {
+		fsBackend, err := NewFileSystemBackend(config.Dirs[0], config.CacheDir)
 		if err != nil {
 			return nil, err
 		}
-		multiBackend.AddBackend(filepath.Base(dir), fsBackend)
-	}
 
-	if config.RcloneDir != "" {
-		rcloneBackend := NewRcloneBackend()
-		multiBackend.AddBackend(config.RcloneDir, rcloneBackend)
+		backend = fsBackend
+	} else {
+
+		multiBackend := NewMultiBackend()
+
+		for _, dir := range config.Dirs {
+			dirName := filepath.Base(dir)
+			subCacheDir := filepath.Join(config.CacheDir, dirName)
+			fsBackend, err := NewFileSystemBackend(dir, subCacheDir)
+			if err != nil {
+				return nil, err
+			}
+			multiBackend.AddBackend(filepath.Base(dir), fsBackend)
+		}
+
+		if config.RcloneDir != "" {
+			rcloneBackend := NewRcloneBackend()
+			multiBackend.AddBackend(config.RcloneDir, rcloneBackend)
+		}
+
+		backend = multiBackend
 	}
 
 	db, err := NewGemDriveDatabase(config.DataDir)
@@ -76,7 +90,7 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 		tmess:   tmess,
 		state:   "stopped",
 		config:  config,
-		backend: multiBackend,
+		backend: backend,
 		keyAuth: keyAuth,
 		db:      db,
 	}
@@ -92,21 +106,21 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 			server.runCtx = nil
 			server.state = "stopped"
 			tmess.Send("state-updated", server.state)
-		case "add-directory":
-			dir := msg.Data.(string)
-			dirName := filepath.Base(dir)
-			subCacheDir := filepath.Join(config.CacheDir, dirName)
-			fsBackend, err := NewFileSystemBackend(dir, subCacheDir)
-			if err != nil {
-				return
-			}
-			multiBackend.AddBackend(filepath.Base(dir), fsBackend)
+			//case "add-directory":
+			//	dir := msg.Data.(string)
+			//	dirName := filepath.Base(dir)
+			//	subCacheDir := filepath.Join(config.CacheDir, dirName)
+			//	fsBackend, err := NewFileSystemBackend(dir, subCacheDir)
+			//	if err != nil {
+			//		return
+			//	}
+			//	multiBackend.AddBackend(filepath.Base(dir), fsBackend)
 
-			tmess.Send("directory-added", dir)
-		case "remove-directory":
-			dir := msg.Data.(string)
-			multiBackend.RemoveBackend(filepath.Base(dir))
-			tmess.Send("directory-removed", dir)
+			//	tmess.Send("directory-added", dir)
+			//case "remove-directory":
+			//	dir := msg.Data.(string)
+			//	multiBackend.RemoveBackend(filepath.Base(dir))
+			//	tmess.Send("directory-removed", dir)
 		}
 	})
 
