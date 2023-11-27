@@ -179,6 +179,13 @@ func (s *Server) start() {
 
 			reqPath = mappedRoot + reqPath
 
+			override, exists := s.config.Overrides[reqPath]
+			if exists {
+				if override.ContentType != "" {
+					header.Set("Content-Type", override.ContentType)
+				}
+			}
+
 			switch r.Method {
 			case "HEAD":
 				s.handleHead(w, r, reqPath)

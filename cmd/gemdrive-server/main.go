@@ -30,6 +30,7 @@ func main() {
 		CacheDir:      filepath.Join(*runDir, "cache"),
 		RcloneDir:     *rclone,
 		WaygateServer: *waygateServer,
+		Overrides:     make(map[string]*gemdrive.Override),
 	}
 
 	if *configPath == "" {

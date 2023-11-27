@@ -14,4 +14,6 @@ COPY gemdrive-server /
 
 ENTRYPOINT ["/gemdrive-server"]
 
+EXPOSE 3838
+
 CMD ["-dir", "/drive"]
