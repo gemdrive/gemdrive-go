@@ -29,6 +29,7 @@ type Server struct {
 	loginHtml  []byte
 	db         *GemDriveDatabase
 	keyAuth    *KeyAuth
+	handler    http.Handler
 }
 
 type HttpServer interface {
@@ -39,6 +40,10 @@ type HttpServer interface {
 func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 
 	var backend Backend
+
+	if config.CacheDir == "" {
+		config.CacheDir = filepath.Join(config.DataDir, "cache")
+	}
 
 	if len(config.Dirs) == 1 && config.RcloneDir == "" {
 		fsBackend, err := NewFileSystemBackend(config.Dirs[0], config.CacheDir)
@@ -86,6 +91,8 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 		return nil, err
 	}
 
+	mux := &http.ServeMux{}
+
 	server := &Server{
 		tmess:   tmess,
 		state:   "stopped",
@@ -93,6 +100,7 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 		backend: backend,
 		keyAuth: keyAuth,
 		db:      db,
+		handler: mux,
 	}
 
 	tmess.ListenFunc(func(msg treemess.Message) {
@@ -124,18 +132,7 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 		}
 	})
 
-	return server, nil
-}
-
-func (s *Server) start() {
-
-	running := s.runCtx != nil
-	if running {
-		s.tmess.Send("error", "already-running")
-		return
-	}
-
-	mux := &http.ServeMux{}
+	s := server
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
@@ -216,6 +213,21 @@ func (s *Server) start() {
 			Addr:    fmt.Sprintf(":%d", s.config.Port),
 			Handler: mux,
 		}
+	}
+
+	return server, nil
+}
+
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.handler.ServeHTTP(w, r)
+}
+
+func (s *Server) start() {
+
+	running := s.runCtx != nil
+	if running {
+		s.tmess.Send("error", "already-running")
+		return
 	}
 
 	go func() {
