@@ -54,12 +54,11 @@ type Override struct {
 }
 
 type Config struct {
-	Port          int                  `json:"port,omitempty"`
-	Dirs          []string             `json:"dirs,omitempty"`
-	DataDir       string               `json:"dataDir,omitempty"`
-	CacheDir      string               `json:"cacheDir,omitempty"`
-	RcloneDir     string               `json:"rcloneDir,omitempty"`
-	DomainMap     map[string]string    `json:"domainMap,omitempty"`
-	WaygateServer string               `json:"waygateServer,omitempty"`
-	Overrides     map[string]*Override `json:"overrides",omitempty"`
+	Port      int                  `json:"port,omitempty"`
+	Dirs      []string             `json:"dirs,omitempty"`
+	DataDir   string               `json:"dataDir,omitempty"`
+	CacheDir  string               `json:"cacheDir,omitempty"`
+	RcloneDir string               `json:"rcloneDir,omitempty"`
+	DomainMap map[string]string    `json:"domainMap,omitempty"`
+	Overrides map[string]*Override `json:"overrides",omitempty"`
 }

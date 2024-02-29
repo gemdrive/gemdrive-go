@@ -20,17 +20,15 @@ func main() {
 	configPath := flag.String("config", "", "Config path")
 	runDir := flag.String("run-dir", "", "Database directory")
 	rclone := flag.String("rclone", "", "Enable rclone proxy")
-	waygateServer := flag.String("waygate-server", "", "Waygate server")
 	flag.Parse()
 
 	config := &gemdrive.Config{
-		Port:          *port,
-		Dirs:          []string{},
-		DataDir:       *runDir,
-		CacheDir:      filepath.Join(*runDir, "cache"),
-		RcloneDir:     *rclone,
-		WaygateServer: *waygateServer,
-		Overrides:     make(map[string]*gemdrive.Override),
+		Port:      *port,
+		Dirs:      []string{},
+		DataDir:   *runDir,
+		CacheDir:  filepath.Join(*runDir, "cache"),
+		RcloneDir: *rclone,
+		Overrides: make(map[string]*gemdrive.Override),
 	}
 
 	if *configPath == "" {

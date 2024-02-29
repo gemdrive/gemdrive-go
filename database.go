@@ -11,11 +11,9 @@ import (
 )
 
 type GemDriveDatabase struct {
-	Keys               map[string]*KeyData `json:"keys"`
-	WaygateAccessToken string              `json:"waygate_access_token"`
-	waygateState       string
-	dbPath             string
-	mutex              *sync.Mutex
+	Keys   map[string]*KeyData `json:"keys"`
+	dbPath string
+	mutex  *sync.Mutex
 }
 
 func NewGemDriveDatabase(dir string) (*GemDriveDatabase, error) {
@@ -119,38 +117,4 @@ func (db *GemDriveDatabase) GetKeyData(key string) (*KeyData, error) {
 	}
 
 	return keyData, nil
-}
-
-// Waygate methods
-func (db *GemDriveDatabase) GetState() string {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
-
-	return db.waygateState
-}
-func (db *GemDriveDatabase) SetState(state string) {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
-
-	db.waygateState = state
-
-	db.Persist()
-}
-func (db *GemDriveDatabase) GetAccessToken() (string, error) {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
-
-	if db.WaygateAccessToken == "" {
-		return "", errors.New("No access token")
-	}
-
-	return db.WaygateAccessToken, nil
-}
-func (db *GemDriveDatabase) SetAccessToken(token string) {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
-
-	db.WaygateAccessToken = token
-
-	db.Persist()
 }
