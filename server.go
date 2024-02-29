@@ -169,7 +169,10 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 		contentType := mime.TypeByExtension(ext)
 		header.Set("Content-Type", contentType)
 
-		if strings.HasPrefix(reqPath, "/gemdrive/") {
+		if hostname == s.config.DashboardDomain {
+			io.WriteString(w, "<h1>GemDrive Dashboard</h1>")
+			return
+		} else if strings.HasPrefix(reqPath, "/gemdrive/") {
 			s.handleGemDriveRequest(w, r, reqPath, mappedRoot)
 		} else {
 
@@ -205,6 +208,14 @@ func NewServer(config *Config, tmess *treemess.TreeMess) (*Server, error) {
 	}
 
 	return server, nil
+}
+
+func (s *Server) DashboardDomain() string {
+	return s.config.DashboardDomain
+}
+
+func (s *Server) FsDomain() string {
+	return s.config.FsDomain
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
